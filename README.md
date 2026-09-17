@@ -4,9 +4,20 @@ Savings Bucket is a goal-oriented savings capability for digital banking. Custom
 
 The project follows the approved design in the documents under [`documents/`](documents/): Python/FastAPI microservices, PostgreSQL, an API Gateway boundary, OIDC/JWT authentication, and asynchronous recurring-contribution processing with EventBridge/SQS in AWS.
 
-## Current status
+## Current development status
 
-This repository currently contains the product, UX, system design, backlog, and implementation-plan documents. The application code and local runtime files have not been scaffolded yet. The instructions below define the local development target and the order in which to build it.
+The R0 foundation scaffold is now implemented:
+
+- Shared FastAPI application factory with liveness and readiness endpoints.
+- Correlation ID response handling through `X-Correlation-ID`.
+- Pydantic Settings configuration loaded from `.env`.
+- Local customer identity and idempotency-key dependencies.
+- Common error response shape and domain service entrypoints.
+- PostgreSQL 16 Docker Compose service.
+- Foundation SQL migration for buckets, transactions, and outbox events.
+- Docker image definition and Pytest/Ruff development configuration.
+
+The domain handlers are intentionally still placeholders and return `501 Not Implemented`. Bucket persistence, contribution and withdrawal workflows, real OIDC/JWT validation, EventBridge/SQS processing, Terraform, and the frontend are not implemented yet. The next phase is R1: bucket creation, listing, details, progress, and ownership checks.
 
 ## MVP scope
 
@@ -66,51 +77,68 @@ savings-bucket/
 
 ## Prerequisites
 
-Install these before creating the service skeleton:
-
-- Python and `pip` version selected by the team for the FastAPI services.
+- Python 3.12.8.
 - Docker Desktop with Docker Compose.
-- PostgreSQL client tools, or access to `psql` through a container.
+- PowerShell for the provided bootstrap script.
 - Git.
-- AWS CLI and Terraform when developing against AWS infrastructure.
+
+AWS CLI and Terraform are needed later for cloud infrastructure work, but are not required for the current local foundation.
 
 Local development should use a mocked banking adapter and local dependencies. Do not connect local experiments to production accounts or production financial data.
 
 ## Start locally
 
-The repository does not yet contain `docker-compose.yml`, service directories, or dependency lock files. After the foundation scaffold is created, use this flow from the repository root:
+From the repository root, run the bootstrap script:
 
 ```powershell
-# Create and activate a local virtual environment for a service.
-py -m venv .venv
-.\.venv\Scripts\Activate.ps1
-
-# Install dependencies after the service requirements are added.
-python -m pip install --upgrade pip
-python -m pip install -r services\bucket-service\requirements.txt
-
-# Start PostgreSQL and local messaging dependencies.
-docker compose up -d postgres
-
-# Apply versioned migrations and optional seed data.
-alembic upgrade head
-python -m db.seed
-
-# Start the first service during R1 development.
-uvicorn services.bucket_service.app:app --reload --port 8001
+.\scripts\run-local.ps1
 ```
 
-When the remaining services are implemented, start them in this order:
+The script creates `.venv` if needed, installs the project with development dependencies, and starts PostgreSQL. Start `bucket-service` with:
 
-1. PostgreSQL and local messaging dependencies.
-2. `bucket-service`.
-3. The mocked `banking-transaction-service`.
-4. `contribution-service` and `withdrawal-service`.
-5. `recurring-contribution-service` and its scheduler/queue workers.
-6. `notification-service`, if enabled.
-7. The API Gateway or local web client.
+```powershell
+.\.venv\Scripts\python.exe -m uvicorn services.bucket_service.main:app --reload --port 8001
+```
 
-The exact module paths, ports, and commands must be recorded here when the service skeleton is committed. The commands above are the intended development flow, not currently runnable commands.
+Start the other services manually when needed:
+
+```powershell
+.\.venv\Scripts\python.exe -m uvicorn services.contribution_service.main:app --reload --port 8002
+.\.venv\Scripts\python.exe -m uvicorn services.withdrawal_service.main:app --reload --port 8003
+.\.venv\Scripts\python.exe -m uvicorn services.recurring_contribution_service.main:app --reload --port 8004
+.\.venv\Scripts\python.exe -m uvicorn services.notification_service.main:app --reload --port 8005
+```
+
+Alternatively, build and run all five service containers:
+
+```powershell
+docker compose up --build
+```
+
+Stop the containers with `docker compose down`. Add `-v` only when you want to remove the local PostgreSQL volume and its data.
+
+### Local ports
+
+| Service | Local port |
+| --- | ---: |
+| `bucket-service` | 8001 |
+| `contribution-service` | 8002 |
+| `withdrawal-service` | 8003 |
+| `recurring-contribution-service` | 8004 |
+| `notification-service` | 8005 |
+| PostgreSQL | 5432 |
+
+Each FastAPI service exposes `GET /health/live` and `GET /health/ready`. The notification service also exposes `GET /internal/status`.
+
+## Database
+
+Compose starts PostgreSQL with database `savings_bucket`, username `savings`, password `savings`, and host port `5432`. Apply the foundation migration after PostgreSQL is ready:
+
+```powershell
+Get-Content .\db\migrations\001_foundation.sql | docker compose exec -T postgres psql -U savings -d savings_bucket
+```
+
+The migration creates `buckets`, `bucket_transactions`, and `outbox_events`. The services currently expose database configuration but do not yet perform database reads or writes.
 
 ## Local configuration
 
@@ -131,7 +159,7 @@ The final configuration names must match the implementation. AWS environments sh
 
 ## API surface
 
-The initial API contract is:
+The initial route contracts are registered, but domain handlers intentionally return `501 Not Implemented` until R1/R2:
 
 | Method | Endpoint | Service |
 | --- | --- | --- |
@@ -144,7 +172,7 @@ The initial API contract is:
 | `POST` | `/v1/buckets/{bucketId}/recurring-contributions` | Recurring contribution |
 | `PATCH` | `/v1/buckets/{bucketId}/recurring-contributions/{id}` | Recurring contribution |
 
-Money-changing requests must include a unique `Idempotency-Key`. A contribution or withdrawal must remain `PENDING` until the banking capability confirms the outcome. Only confirmed success may change the logical bucket allocation.
+Contribution and withdrawal routes require an `Idempotency-Key`; domain routes require the current local customer identity dependency. These are scaffold dependencies and must be completed with OIDC/JWT validation before production use. A contribution or withdrawal must remain `PENDING` until the banking capability confirms the outcome. Only confirmed success may change the logical bucket allocation.
 
 ## Data and consistency rules
 
@@ -161,16 +189,22 @@ The initial tables are `buckets`, `bucket_transactions`, `recurring_contribution
 
 ## Verification
 
-Run these checks as each service is added:
+Check the running foundation:
 
 ```powershell
-# Replace with the repository's final test and lint commands.
-python -m pytest
-python -m ruff check .
-python -m mypy .
+Invoke-RestMethod http://localhost:8001/health/live
+Invoke-RestMethod http://localhost:8001/health/ready
+Invoke-RestMethod http://localhost:8005/internal/status
 ```
 
-The minimum end-to-end scenario is:
+Run the automated checks from the repository root:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest
+.\.venv\Scripts\python.exe -m ruff check .
+```
+
+The current tests cover the shared health contract. The minimum future end-to-end scenario is:
 
 ```text
 authenticate -> create bucket -> contribute -> verify progress -> withdraw
