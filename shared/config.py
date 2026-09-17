@@ -24,9 +24,13 @@ class Settings(BaseSettings):
     def build_local_database_url(self) -> "Settings":
         if not self.database_url and self.database_password:
             self.database_url = (
-                "postgresql+psycopg://"
+                "postgresql://"
                 f"{self.database_user}:{quote(self.database_password, safe='')}"
                 "@localhost:5432/savings_bucket"
+            )
+        elif self.database_url.startswith("postgresql+psycopg://"):
+            self.database_url = self.database_url.replace(
+                "postgresql+psycopg://", "postgresql://", 1
             )
         return self
 
