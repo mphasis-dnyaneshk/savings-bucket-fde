@@ -6,7 +6,7 @@ The project follows the approved design in the documents under [`documents/`](do
 
 ## Current development status
 
-The R0 foundation scaffold is now implemented:
+The R0 foundation and the bucket-service R1 slice are implemented:
 
 - Shared FastAPI application factory with liveness and readiness endpoints.
 - Correlation ID response handling through `X-Correlation-ID`.
@@ -14,16 +14,17 @@ The R0 foundation scaffold is now implemented:
 - Local customer identity and idempotency-key dependencies.
 - Common error response shape and domain service entrypoints.
 - Local PostgreSQL development workflow using the `dnyanesh_kudale` user.
+- Mock/in-memory bucket store for development without production or database data.
 - Optional PostgreSQL 16 Docker Compose service for isolated container development.
 - Foundation SQL migration for buckets, transactions, and outbox events.
 - Docker image definition and Pytest/Ruff development configuration.
 
-The domain handlers are intentionally still placeholders and return `501 Not Implemented`. Bucket persistence, contribution and withdrawal workflows, real OIDC/JWT validation, EventBridge/SQS processing, Terraform, and the frontend are not implemented yet. The next phase is R1: bucket creation, listing, details, progress, and ownership checks.
+The bucket service is now end-to-end for its current API surface: create, list, details, progress, and transaction-history reads. It supports a local `X-Customer-ID` identity header and filters every read by customer ownership. Contribution, withdrawal, recurring-contribution, real OIDC/JWT validation, EventBridge/SQS processing, Terraform, and the frontend are not implemented yet.
 
 ## MVP scope
 
-- Create and list customer-owned savings buckets.
-- View balance, target amount, target date, remaining amount, and progress.
+- Create and list customer-owned savings buckets. **Implemented in bucket-service.**
+- View balance, target amount, target date, remaining amount, and progress. **Implemented in bucket-service.**
 - Contribute money to a bucket.
 - Withdraw money from a bucket allocation.
 - View contribution and withdrawal history.
@@ -85,18 +86,37 @@ savings-bucket/
 
 AWS CLI and Terraform are needed later for cloud infrastructure work, but are not required for the current local foundation.
 
-Local development uses the installed PostgreSQL server with database user `dnyanesh_kudale`. The password is read from the `FDE_DB_PASS` environment variable and is never committed to the repository. Do not connect local experiments to production accounts or production financial data.
+Local development defaults to mock mode, which stores bucket data in memory and requires no production data or database credentials. PostgreSQL mode is also supported with database user `dnyanesh_kudale`; its password is read from `FDE_DB_PASS` and is never committed to the repository. Do not connect local experiments to production accounts or production financial data.
 
 ## Start locally
 
-From the repository root, set the PostgreSQL password for the current Git Bash session and run the bootstrap script:
+### Mock mode: fastest local start
+
+Mock mode is the recommended capstone workflow for developing and demonstrating bucket-service. It uses the in-memory store when `FDE_DB_PASS` and `DATABASE_URL` are not set:
+
+```bash
+./.venv/Scripts/python.exe -m pip install -e ".[dev]"
+./.venv/Scripts/python.exe -m uvicorn services.bucket_service.main:app --reload --port 8001
+```
+
+For a fresh checkout, create the environment first:
+
+```bash
+python -m venv .venv
+./.venv/Scripts/python.exe -m pip install -e ".[dev]"
+```
+
+### PostgreSQL mode: local persistence
+
+Use this mode when you want bucket data persisted in your installed PostgreSQL:
 
 ```bash
 export FDE_DB_PASS='your-local-postgres-password'
 bash ./scripts/run-local.sh
+./.venv/Scripts/python.exe -m uvicorn services.bucket_service.main:app --reload --port 8001
 ```
 
-The script creates `.venv` if needed, installs the project with development dependencies, verifies `psql`, creates the local database if needed, and applies the foundation migration. Start `bucket-service` with:
+The script verifies `psql`, creates `savings_bucket` if needed, applies the foundation migration, and starts no application process by itself. Start `bucket-service` with:
 
 ```bash
 ./.venv/Scripts/python.exe -m uvicorn services.bucket_service.main:app --reload --port 8001
@@ -142,7 +162,7 @@ For the optional Compose workflow, PostgreSQL uses database `savings_bucket`, us
 docker compose exec -T postgres psql -U savings -d savings_bucket < db/migrations/001_foundation.sql
 ```
 
-The migration creates `buckets`, `bucket_transactions`, and `outbox_events`. The services currently expose database configuration but do not yet perform database reads or writes.
+The migration creates `buckets`, `bucket_transactions`, and `outbox_events`. Bucket-service reads and writes `buckets` in PostgreSQL mode. Mock mode does not require PostgreSQL and its data is reset whenever the process restarts.
 
 ## Local configuration
 
@@ -161,22 +181,43 @@ SQS_MODE=local
 
 The final configuration names must match the implementation. AWS environments should use Secrets Manager and KMS rather than committed credentials or plaintext secrets.
 
-## API surface
+## Bucket-service API
 
-The initial route contracts are registered, but domain handlers intentionally return `501 Not Implemented` until R1/R2:
+The following bucket-service APIs are implemented. Use `X-Customer-ID` as the temporary local identity header; replace it with OIDC/JWT authentication before production use:
 
 | Method | Endpoint | Service |
 | --- | --- | --- |
-| `POST` | `/v1/buckets` | Bucket |
-| `GET` | `/v1/buckets` | Bucket |
-| `GET` | `/v1/buckets/{bucketId}` | Bucket |
-| `POST` | `/v1/buckets/{bucketId}/contributions` | Contribution |
-| `POST` | `/v1/buckets/{bucketId}/withdrawals` | Withdrawal |
-| `GET` | `/v1/buckets/{bucketId}/transactions` | Bucket/history |
-| `POST` | `/v1/buckets/{bucketId}/recurring-contributions` | Recurring contribution |
-| `PATCH` | `/v1/buckets/{bucketId}/recurring-contributions/{id}` | Recurring contribution |
+| `POST` | `/v1/buckets` | Create a bucket |
+| `GET` | `/v1/buckets` | List the customer's buckets |
+| `GET` | `/v1/buckets/{bucket_id}` | Get bucket details and progress |
+| `GET` | `/v1/buckets/{bucket_id}/transactions` | List bucket transactions |
+| `POST` | `/v1/buckets/{bucket_id}/contributions` | Planned contribution endpoint |
+| `POST` | `/v1/buckets/{bucket_id}/withdrawals` | Planned withdrawal endpoint |
+| `POST` | `/v1/buckets/{bucket_id}/recurring-contributions` | Planned recurring endpoint |
+| `PATCH` | `/v1/buckets/{bucket_id}/recurring-contributions/{id}` | Planned recurring endpoint |
 
-Contribution and withdrawal routes require an `Idempotency-Key`; domain routes require the current local customer identity dependency. These are scaffold dependencies and must be completed with OIDC/JWT validation before production use. A contribution or withdrawal must remain `PENDING` until the banking capability confirms the outcome. Only confirmed success may change the logical bucket allocation.
+### Bucket API example
+
+Create a bucket:
+
+```bash
+curl -X POST http://localhost:8001/v1/buckets \
+	-H 'Content-Type: application/json' \
+	-H 'X-Customer-ID: customer-001' \
+	-d '{"name":"Emergency Fund","target_amount":"100000.00","target_date":"2027-12-31"}'
+```
+
+Copy the returned `bucket_id`, then list and inspect the bucket:
+
+```bash
+curl -H 'X-Customer-ID: customer-001' http://localhost:8001/v1/buckets
+curl -H 'X-Customer-ID: customer-001' http://localhost:8001/v1/buckets/<bucket_id>
+curl -H 'X-Customer-ID: customer-001' http://localhost:8001/v1/buckets/<bucket_id>/transactions
+```
+
+The response includes `current_balance`, `remaining_amount`, and `progress_percentage`. A different customer ID cannot access the bucket and receives `404 Bucket not found.`
+
+Invalid or missing `X-Customer-ID` returns `401`. Invalid names, amounts, and dates are rejected by the request schema with `422`.
 
 ## Data and consistency rules
 
