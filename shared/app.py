@@ -20,6 +20,15 @@ def create_app(
         response.headers["X-Correlation-ID"] = request_id
         return response
 
+    @app.get("/", tags=["service"])
+    async def service_info() -> dict[str, str]:
+        return {
+            "service": service_name,
+            "status": "ok",
+            "health": "/health/live",
+            "docs": "/docs",
+        }
+
     @app.get("/health/live", tags=["health"])
     async def liveness() -> dict[str, str]:
         return {"status": "ok", "service": service_name}

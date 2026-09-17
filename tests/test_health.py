@@ -5,6 +5,18 @@ from services.bucket_service.main import app
 client = TestClient(app)
 
 
+def test_service_root() -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "service": "bucket-service",
+        "status": "ok",
+        "health": "/health/live",
+        "docs": "/docs",
+    }
+
+
 def test_liveness() -> None:
     response = client.get("/health/live")
 
