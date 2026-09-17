@@ -1,0 +1,94 @@
+Discovery Document
+Project: Savings Bucket
+Domain: Digital Banking / Personal Finance
+Document Type: Product Discovery
+Status: Draft – Discovery Phase
+Version: 1.0
+Date: 31st August 2026
+________________________________________
+1. Executive Summary
+The Savings Bucket initiative aims to explore how a digital banking platform can help customers organize their savings around specific financial goals.
+Customers may have multiple financial objectives such as building an emergency fund, planning a vacation, purchasing a vehicle, paying education expenses, or saving for a home. A traditional savings account generally provides a single balance and does not provide sufficient visibility or granularity into how much of that balance is intended for each goal.
+The proposed concept is a Savings Bucket capability that allows customers to create multiple goal-based savings buckets, allocate money toward each goal, track progress, and optionally automate recurring contributions.
+Objective:
+Explore and define a digital savings-bucket experience that enables customers to create, organize, track and contribute toward multiple financial goals within their banking experience.
+
+2. Problem Statement
+Customers often have multiple financial goals but lack an intuitive mechanism to separate and track their savings against those goals. This can make it difficult to understand progress, maintain savings discipline and determine whether they are on track to achieve their financial objectives.
+
+
+
+
+3. Target Users
+The initial target users are potential customer segments who may benefit from organizing and tracking savings across multiple financial goals:
+User	Need
+Young professionals	Save for travel, gadgets, emergency fund
+Families	Save for education, home, vacation
+High-income customers	Multiple financial goals
+Students	Education/travel goals
+New customers	Build emergency savings & developing savings habit
+
+4. Current State
+ 
+Current-state observation: Customers may have multiple financial goals but their savings are typically represented as a single overall balance, requiring them to manually or mentally track how much money is intended for each goal.
+5. Pain Points
+Potential hypotheses:
+•	Difficult to track multiple financial goals 
+•	No clear visibility of goal progress 
+•	Customers may spend money intended for another goal 
+•	Difficult to determine how much they should save 
+•	Manual tracking is inconvenient 
+•	Lack of personalized savings recommendations 
+•	Customers may not stay disciplined
+6. Potential Future State: Savings Bucket Platform
+    
+  
+The proposed experience would allow customers to organize savings around specific financial goals, monitor progress toward each goal, and optionally make recurring contributions. 
+7. Potential MVP
+Customer can:
+1.	Create a savings goal/bucket
+2.	Give it a name 
+3.	Set target amount 
+4.	Set target date 
+5.	Add money to the bucket 
+6.	Withdraw money from bucket
+7.	View current balance 
+8.	View goal progress 
+9.	View transaction history 
+10.	Set recurring contribution
+ 
+8. Advanced Features
+1.	Personalized Savings Recommendation
+	The system could analyze relevant customer information such as:
+•	Income 
+•	Spending patterns 
+•	Existing savings 
+•	Savings goals 
+•	Target dates
+		
+	to provide personalized savings recommendations.
+	Example:
+	"Based on your current savings pattern, contributing ₹7,500 per month could help 	you reach your vacation goal within your target timeframe."
+
+2.	Intelligent Goal Adjustment
+	The system could identify when a customer is unlikely to achieve a goal within the 	target date and suggest adjustments.	
+	Example:
+	"You currently save ₹5,000/month. At this rate you'll reach your ₹1,00,000 vacation 	goal in 20 months. Increasing your monthly contribution to ₹7,500 would help you 	reach it in approximately 14 months."
+	
+3.	Smart Bucket Recommendation
+	The system could recommend potential savings goals based on relevant customer 	financial patterns.
+	Example:
+	Emergency Fund
+	Recommended target: ₹2,00,000
+	Current savings: ₹80,000
+	Recommended monthly contribution: ₹10,000
+
+9. Discovery Summary
+The discovery for the Savings Bucket initiative indicates an opportunity to provide customers with a more structured and goal-oriented way to manage their savings.
+Key takeaways:
+•	Customers may have multiple financial goals but limited visibility into how their savings are allocated across those goals. 
+•	A goal-based savings experience could help customers organize, track, and manage savings for different financial objectives. 
+•	The potential MVP focuses on core capabilities such as creating savings goals, setting targets and dates, contributing funds, tracking progress, viewing transactions, and setting recurring contributions. 
+•	Advanced opportunities include personalized savings recommendations, intelligent goal adjustments, and smart bucket recommendations.
+
+

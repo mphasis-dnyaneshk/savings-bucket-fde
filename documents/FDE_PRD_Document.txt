@@ -1,0 +1,297 @@
+Product Requirements Document (PRD)
+Project: Savings Bucket
+Domain: Digital Banking / Personal Finance
+Document Type: Product Requirements Document
+Status: Draft – Product Definition
+Version: 1.0
+Date: 2nd September 2026
+Source: Savings Bucket Product Discovery
+________________________________________
+1. Product Overview
+The Savings Bucket capability is intended to provide customers with a structured and goal-oriented way to manage their savings.
+Customers may have multiple financial objectives such as:
+•	Emergency fund 
+•	Vacation 
+•	Vehicle purchase 
+•	Education 
+•	Home purchase 
+Today, customers may need to mentally or manually track how much of their overall savings are intended for each goal. This can make it difficult to understand progress and maintain consistent saving habits. 
+The Savings Bucket experience will allow customers to create and manage multiple savings goals within their banking experience.
+________________________________________
+2. Product Vision
+Enable customers to organize, track, and grow their savings around the financial goals that matter to them.
+The product should make saving:
+•	Structured — savings can be organized by goal. 
+•	Visible — customers can clearly see progress. 
+•	Goal-oriented — each bucket has a defined target. 
+•	Convenient — customers can contribute and withdraw money easily. 
+•	Disciplined — recurring contributions can support consistent saving.
+________________________________________
+3. Product Goals
+The Savings Bucket product should:
+1.	Allow customers to create multiple savings goals. 
+2.	Allow customers to define a target amount for each goal. 
+3.	Allow customers to define a target date. 
+4.	Allow customers to contribute money toward individual goals. 
+5.	Allow customers to withdraw money from a goal. 
+6.	Provide clear visibility into current savings and progress. 
+7.	Provide transaction history for each bucket. 
+8.	Allow customers to configure recurring contributions. 
+9.	Provide opportunities for personalized savings guidance in future phases. 
+________________________________________
+4. User Needs
+Based on discovery, customers may need:
+•	A simple way to organize savings by goal. 
+•	Visibility into progress toward individual goals. 
+•	A way to prevent savings intended for one goal from being accidentally used for another. 
+•	Guidance on how much they should save regularly. 
+•	Convenient tracking instead of manual methods. 
+•	Personalized savings recommendations. 
+•	Support for maintaining consistent saving habits. 
+________________________________________
+5. Proposed Product Experience
+The Savings Bucket experience should allow a customer to:
+Create Goal → Define Target → Add Money → Track Progress → Continue Saving → Achieve Goal
+For example:
+Europe Vacation
+Target: ₹1,50,000
+Saved: ₹75,000
+Remaining: ₹75,000
+Progress: 50%
+Target Date: June 2027
+Monthly Contribution: ₹10,000
+The customer should be able to understand the status of the goal immediately.
+________________________________________
+6. Create Savings Bucket
+The MVP will focus on the core goal-based savings experience identified during discovery. 
+Customers should be able to create a new savings bucket.
+Requirements
+•	Customer can create a bucket. 
+•	Customer can provide a bucket/goal name. 
+•	Customer can set a target amount. 
+•	Customer can set a target date. 
+Example
+Goal: Europe Vacation
+Target: ₹1,50,000
+Target Date: June 2027
+________________________________________
+7. Add Money to Bucket
+Customers should be able to contribute money toward a selected savings bucket.
+Requirements
+•	Customer can select a bucket. 
+•	Customer can specify the contribution amount. 
+•	Customer can confirm the contribution. 
+•	Bucket balance should reflect the contribution. 
+Example
+Customer adds:
+₹10,000 → Europe Vacation
+Bucket balance becomes:
+₹85,000 / ₹1,50,000
+________________________________________
+8. Withdraw Money from Bucket
+Customers should be able to withdraw money from a bucket.
+Requirements
+•	Customer can select a bucket. 
+•	Customer can specify withdrawal amount. 
+•	Customer can confirm withdrawal. 
+•	Bucket balance should be updated. 
+•	Transaction should be recorded
+The experience should clearly show the impact of withdrawal on goal progress.
+________________________________________
+9. View Current Balance
+Customers should be able to view the current amount saved in each bucket.
+Example:
+Goal	Target	Saved
+Europe Vacation	₹1,50,000	₹75,000
+Emergency Fund	₹2,00,000	₹80,000
+New Car	₹5,00,000	₹1,50,000
+
+________________________________________
+10. View Goal Progress
+Customers should be able to understand how close they are to achieving each goal.
+The product should display:
+•	Target amount 
+•	Current Saved Amount 
+•	Remaining amount 
+•	Percentage progress 
+•	Target date 
+Example
+Europe Vacation
+₹75,000 / ₹1,50,000
+50% Complete
+________________________________________
+11. Transaction History
+Customers should be able to view transactions associated with each savings bucket.
+The transaction history should help customers understand:
+•	Contributions 
+•	Withdrawals 
+•	Transaction amount
+•	Transaction date 
+________________________________________
+12. Recurring Contribution
+Customers should be able to configure recurring contributions toward a savings goal.
+Example
+Europe Vacation
+Monthly Contribution: ₹10,000
+The capability should support the customer's objective of maintaining consistent savings habits.
+________________________________________
+13. Functional Requirements
+ID	Requirement	Priority
+FR-001	Customer can create a savings bucket	Must Have
+FR-002	Customer can name the bucket	Must Have
+FR-003	Customer can set target amount	Must Have
+FR-004	Customer can set target date	Must Have
+FR-005	Customer can add money to bucket	Must Have
+FR-006	Customer can withdraw money	Must Have
+FR-007	Customer can view current bucket balance	Must Have
+FR-008	Customer can view goal progress	Must Have
+FR-009	Customer can view transaction history	Must Have
+FR-010	Customer can configure recurring contribution	Must Have
+________________________________________
+14. Non-Functional Requirements
+14.1 Performance
+•	Savings Bucket dashboard should load within an acceptable response time under normal operating conditions. 
+•	Balance and goal-progress information should be displayed without significant delay after a successful transaction. 
+•	The system should support expected peak customer traffic without significant performance degradation. 
+14.2 Availability
+•	Savings Bucket functionality should be available in line with the bank's overall digital banking availability targets. 
+•	Planned maintenance should minimize customer impact. 
+•	Temporary service failures should provide an appropriate user-friendly message. 
+14.3 Reliability & Data Consistency
+•	Bucket balances must accurately reflect successful contributions and withdrawals. 
+•	Transactions must not result in duplicate deductions or duplicate credits. 
+•	Goal progress must remain consistent with the underlying bucket balance. 
+•	Failed transactions must not partially update the bucket balance. 
+14.4 Security
+•	Only authenticated and authorized customers should be able to access their savings buckets. 
+•	Customers must only be able to view and manage their own buckets. 
+•	Sensitive customer and financial information must be protected during storage and transmission. 
+•	Financial transactions must follow the bank's existing security and authentication controls. 
+14.5 Scalability
+•	The solution should support customers having multiple savings buckets. 
+•	The platform should be capable of scaling as the number of customers, buckets, and transactions increases. 
+14.6 Auditability
+•	Contributions and withdrawals should maintain an auditable transaction history. 
+•	Important bucket-related actions should be traceable for operational and compliance purposes. 
+14.7 Usability
+•	Customers should be able to create and manage a bucket through an intuitive experience. 
+•	Goal progress should be easy to understand without requiring financial expertise. 
+•	The experience should clearly communicate successful and failed actions. 
+14.8 Accessibility
+•	The Savings Bucket experience should follow the organization's applicable accessibility standards. 
+•	Key information such as balance, progress, target amount, and target date should be accessible to customers using supported assistive technologies. 
+14.9 Privacy & Compliance
+•	Customer financial information used for savings recommendations must be handled according to applicable privacy and banking requirements. 
+•	Any future personalized/AI recommendations should use only appropriately authorized customer information. 
+•	Recommendations should be presented as guidance rather than guaranteed financial outcomes.
+
+15. Advanced / Future Capabilities (Scope)
+The following capabilities were identified as opportunities beyond the core MVP.
+Personalized Savings Recommendation
+The product could analyze relevant customer information such as:
+•	Income 
+•	Spending patterns 
+•	Existing savings 
+•	Savings goals 
+•	Target dates 
+and provide personalized savings recommendations. 
+Example
+"Based on your current savings pattern, contributing ₹7,500 per month could help you reach your vacation goal within your target timeframe."
+________________________________________
+16. Intelligent Goal Adjustment
+The product could identify when a customer is unlikely to achieve a goal within the target date and suggest an adjustment.
+Example
+You currently save ₹5,000/month. At this rate you'll reach your ₹1,00,000 vacation goal in 20 months. Increasing your monthly contribution to ₹7,500 would help you reach it in approximately 14 months.
+This capability could help customers understand the relationship between:
+Current contribution → Target amount → Target date → Required contribution
+________________________________________
+17. Smart Bucket Recommendation
+The product could recommend potential savings goals based on relevant customer financial patterns.
+Example
+Emergency Fund
+Recommended Target: ₹2,00,000
+Current Savings: ₹80,000
+Recommended Monthly Contribution: ₹10,000
+This should initially be treated as a future product opportunity, not a mandatory MVP requirement.
+________________________________________
+18. Success Indicators/Criteria
+The product should ultimately help customers:
+•	Organize savings around multiple goals. 
+•	Better understand their savings progress. 
+•	Track individual financial objectives. 
+•	Maintain consistent saving behavior. 
+•	Increase engagement with goal-based saving. 
+________________________________________
+19. Assumptions
+The PRD currently assumes that:
+1.	Customers have multiple financial goals. 
+2.	Customers would benefit from separating savings by goal. 
+3.	Customers value visibility into goal progress. 
+4.	Customers would use recurring contributions. 
+5.	Personalized savings recommendations could provide additional value.
+________________________________________
+20. Dependencies
+Potential dependencies include:
+•	Customer banking account 
+•	Existing savings balance 
+•	Transaction processing capability 
+•	Recurring payment/contribution capability 
+•	Customer financial information required for future recommendations
+________________________________________
+21. Open Questions
+The following should be answered before finalizing the implementation scope:
+1.	Can customers create unlimited buckets? 
+2.	Is there a minimum/maximum target amount? 
+3.	Can customers rename or delete a bucket? 
+4.	What happens if a customer withdraws money from a bucket? 
+5.	Can customers pause or modify recurring contributions? 
+6.	What happens when the target date is reached? 
+7.	Can a customer contribute to multiple buckets from the same account? 
+8.	Should customers receive notifications about goal progress? 
+9.	Should the system automatically suggest target amounts? 
+10.	How should personalized recommendations be presented? 
+11.	Should customers be able to mark a goal as completed? 
+12.	What happens to money after a goal is completed?
+________________________________________
+22. Risks
+Risk	Impact
+Customers may not understand the bucket concept	Low adoption
+Too many buckets may create complexity	Poor user experience
+Customers may withdraw frequently	Goals may not be achieved
+Recommendations may be inaccurate	Loss of customer trust
+Customers may not configure recurring contributions	Limited savings discipline
+
+________________________________________
+
+23. Acceptance Criteria — MVP
+The MVP can be considered functionally complete when:
+•	Customer can create a savings bucket. 
+•	Customer can provide a goal name. 
+•	Customer can define target amount. 
+•	Customer can define target date. 
+•	Customer can add money. 
+•	Customer can withdraw money. 
+•	Customer can view current balance. 
+•	Customer can view goal progress. 
+•	Customer can view transaction history. 
+•	Customer can configure recurring contributions. 
+________________________________________
+24. Product Flow
+ 
+________________________________________
+25. Future Product Evolution
+The product can evolve from a basic goal-based savings experience into a more personalized savings capability:
+ 
+________________________________________
+26. PRD Summary
+The Savings Bucket product aims to provide customers with a structured and goal-oriented way to manage their savings.
+The MVP focuses on the core experience:
+Create → Define Target → Contribute → Track → Withdraw → View Progress → Save Regularly
+Future capabilities can introduce personalized recommendations, intelligent goal adjustments, and smart bucket recommendations.
+The PRD translates the discovery findings into specific product capabilities and requirements, while leaving detailed technical architecture and implementation decisions for the next stage.
+Product Statement
+Savings Bucket will help customers organize, manage, and track their savings against multiple financial goals, providing greater visibility into progress and supporting consistent saving behavior.
+________________________________________
+
+
+

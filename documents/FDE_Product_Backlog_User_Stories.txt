@@ -1,0 +1,500 @@
+PRODUCT BACKLOG & USER STORIES
+Document Type	Product Backlog & User Stories
+Project	Savings Bucket
+Domain	Digital Banking / Personal Finance
+Version	1.0
+Status	Final – MVP Delivery Backlog
+Date	September 2026
+
+1. Backlog Overview
+This backlog is the delivery bridge between product/UX definition and engineering implementation. It is organized around customer outcomes and domain capabilities rather than around individual technical components.
+Discovery	PRD	SDD	UX & User Journey	Backlog	Implementation	Test	Deploy
+
+•	MVP prioritizes goal creation, contributions, withdrawals, progress, history, and recurring contributions.
+•	Financial movement is a controlled workflow involving the authoritative banking transaction capability.
+•	Bucket balances are logical allocations; actual funds remain authoritative in the banking account capability.
+•	Recurring contributions are asynchronous and require explicit schedule/execution states.
+•	Future AI capabilities are retained in the backlog but are not part of the MVP release.
+2. Backlog Strategy
+2.1 Prioritization
+Priority	Meaning	Use	Examples
+P0 – Must	Required for usable/safe MVP	Release blocker if missing	Create bucket, add money, withdraw
+P1 – Should	Important for MVP quality	Can follow core flow	History pagination, operations
+P2 – Could	Useful enhancement	Post-MVP if capacity allows	Advanced notification preferences
+Future	Outside MVP	Later product phase	AI recommendations
+2.2 Definition of Ready
+•	User value and actor are clear.
+•	Story is small enough to implement/test independently or as a clear slice.
+•	Acceptance criteria are testable.
+•	UX behavior is defined or linked.
+•	API/data dependencies are known or explicitly identified.
+•	Security and financial-safety implications are understood.
+•	No unresolved dependency blocks starting the story.
+2.3 Definition of Done
+•	Implementation complete and peer reviewed.
+•	Unit and relevant integration/contract tests pass.
+•	Acceptance criteria demonstrated.
+•	Authorization and validation implemented.
+•	Observability/correlation included where applicable.
+•	API and data contracts updated.
+•	Failure/idempotency behavior covered for money-moving stories.
+•	Documentation updated where design changes.
+3. Epic Catalogue
+Epic ID	Epic	Outcome	Priority
+EPIC-01	Savings Bucket Management	Create/manage customer savings goals	P0
+EPIC-02	Goal Progress & Visibility	Balance, target, remaining, progress	P0
+EPIC-03	Contributions	Safely add money to a selected bucket	P0
+EPIC-04	Withdrawals	Safely withdraw allocated money	P0
+EPIC-05	Transaction History	Contribution/withdrawal history and status	P0
+EPIC-06	Recurring Contributions	Configure/execute scheduled contributions	P0/P1
+EPIC-07	Notifications	Optional event-driven notifications	P1
+EPIC-08	Security & Platform	Auth, authorization, audit, reliability, operations	P0
+EPIC-09	Future AI	Advisory savings recommendations	Future
+4. Detailed User Stories
+SB-001 – Create savings bucket
+Epic: EPIC-01   Priority: P0
+User Story: As a customer, I want to create a savings bucket with a goal name, target amount and target date so that I can organize savings around a financial objective.
+Acceptance Criteria
+•	Customer can open Create Bucket.
+•	Customer can enter goal name, target amount and target date.
+•	Valid input creates a customer-owned bucket.
+•	Initial bucket balance is zero.
+•	New bucket is visible immediately.
+•	Creation does not create a separate bank account.
+Dependencies / Technical Touchpoints: Bucket Service; PostgreSQL; POST /v1/buckets
+Test Focus: Validation; ownership; persistence; initial state
+SB-002 – Validate bucket goal data
+Epic: EPIC-01   Priority: P0
+User Story: As a customer, I want clear validation when entering goal details so that I can create a valid savings goal.
+Acceptance Criteria
+•	Name cannot be blank.
+•	Target amount must be valid and greater than zero.
+•	Target date follows the finalized product rule.
+•	Validation appears near the relevant field.
+•	Technical exception text is not shown.
+Dependencies / Technical Touchpoints: Create Bucket UX; domain validation
+Test Focus: Invalid/boundary values; customer-readable errors
+SB-003 – List customer buckets
+Epic: EPIC-01   Priority: P0
+User Story: As a customer, I want to see my savings buckets so that I can understand all active goals in one place.
+Acceptance Criteria
+•	Only authenticated customer-owned buckets are returned.
+•	Each bucket shows name, saved/target, progress and target date where available.
+•	Empty state is shown when none exist.
+•	Ordering is predictable.
+Dependencies / Technical Touchpoints: GET /v1/buckets; Bucket Service
+Test Focus: Multiple buckets; empty state; cross-customer access
+SB-004 – View bucket details
+Epic: EPIC-01   Priority: P0
+User Story: As a customer, I want to open a bucket and see its details so that I can manage one goal.
+Acceptance Criteria
+•	Detail shows name, balance, target, remaining and progress.
+•	Target date and recurring status appear when applicable.
+•	Add Money/Withdraw actions are available according to state.
+•	Unauthorized buckets are not exposed.
+Dependencies / Technical Touchpoints: GET /v1/buckets/{bucketId}; Bucket Service
+Test Focus: Valid/missing/unauthorized bucket
+SB-005 – Calculate and display goal progress
+Epic: EPIC-02   Priority: P0
+User Story: As a customer, I want to see my progress toward a goal so that I know how close I am to the target.
+Acceptance Criteria
+•	Shows saved, target and percentage.
+•	Remaining amount is understandable.
+•	Updates after confirmed successful contribution/withdrawal.
+•	Progress has a textual equivalent and does not rely on color.
+Dependencies / Technical Touchpoints: Bucket Service; PostgreSQL
+Test Focus: 0%; partial; target reached; withdrawal; concurrency
+SB-006 – Display remaining amount and target date
+Epic: EPIC-02   Priority: P0
+User Story: As a customer, I want to see what remains to reach my goal and by when so that I understand my savings position.
+Acceptance Criteria
+•	Remaining amount is derived from target/current allocation.
+•	Target date follows product rule.
+•	Dashboard and detail are consistent.
+Dependencies / Technical Touchpoints: Bucket Service; UX
+Test Focus: Boundary combinations; consistency
+SB-007 – Initiate contribution
+Epic: EPIC-03   Priority: P0
+User Story: As a customer, I want to enter and review a contribution before confirming it so that I know how much I am assigning to a goal.
+Acceptance Criteria
+•	Select bucket; enter positive amount; review bucket/amount; explicit confirmation; funding account context clear.
+•	Repeated taps do not create duplicate processing.
+Dependencies / Technical Touchpoints: POST /v1/buckets/{id}/contributions; Contribution Service; Banking Adapter
+Test Focus: Valid/invalid amount; review; repeat submission
+SB-008 – Process contribution with idempotency
+Epic: EPIC-03   Priority: P0
+User Story: As the platform, I want contribution requests to be idempotent so that retries cannot cause duplicate financial processing.
+Acceptance Criteria
+•	Unique idempotency key supported.
+•	Same key returns existing request/result.
+•	Conflicting reuse is rejected safely.
+•	Duplicate processing is tested.
+Dependencies / Technical Touchpoints: Contribution Service; Banking Transaction Service; PostgreSQL
+Test Focus: Retry; timeout; concurrent duplicate
+SB-009 – Handle contribution outcome states
+Epic: EPIC-03   Priority: P0
+User Story: As a customer, I want to know whether my contribution is pending, successful, failed or reversed so that I am not misled about my money.
+Acceptance Criteria
+•	Supports PENDING, SUCCESS, FAILED and REVERSED where applicable.
+•	No success shown before authoritative success.
+•	Pending is visible.
+•	Failed/reversed events are represented in history.
+Dependencies / Technical Touchpoints: Contribution Service; banking outcome model
+Test Focus: Success/failure/timeout/reversal
+SB-010 – Update allocation after successful contribution
+Epic: EPIC-03   Priority: P0
+User Story: As the platform, I want to update bucket allocation only after financial success so that bucket state remains consistent with actual money movement.
+Acceptance Criteria
+•	Success increases allocation.
+•	Failure does not increase allocation.
+•	Local update is ACID.
+•	Outbox/event intent is reliable.
+•	Reconciliation can detect incomplete local completion.
+Dependencies / Technical Touchpoints: Bucket Service; PostgreSQL; outbox; banking outcome
+Test Focus: Success/failure/partial failure/reconciliation/duplicate event
+SB-011 – Initiate withdrawal
+Epic: EPIC-04   Priority: P0
+User Story: As a customer, I want to withdraw allocated savings from a bucket so that I can use funds when needed.
+Acceptance Criteria
+•	Select bucket; enter amount; show available allocation; review impact; explicit confirmation; accurate result.
+Dependencies / Technical Touchpoints: POST /v1/buckets/{id}/withdrawals; Withdrawal Service; Banking Adapter
+Test Focus: Valid/invalid; confirmation; result states
+SB-012 – Validate available allocation
+Epic: EPIC-04   Priority: P0
+User Story: As a customer, I want the system to prevent withdrawals above my bucket allocation so that I cannot create an invalid goal balance.
+Acceptance Criteria
+•	Amount > 0.
+•	Amount <= available allocation.
+•	Validation before submission where possible.
+•	Customer-readable business error.
+Dependencies / Technical Touchpoints: Bucket Service; PostgreSQL
+Test Focus: Zero/negative/exact/above balance/concurrency
+SB-013 – Process withdrawal with idempotency
+Epic: EPIC-04   Priority: P0
+User Story: As the platform, I want withdrawal requests to be idempotent so that retries do not create duplicate financial processing.
+Acceptance Criteria
+•	Unique key supported.
+•	Same key does not create second operation.
+•	Conflicting reuse is rejected.
+•	Concurrent scenarios tested.
+Dependencies / Technical Touchpoints: Withdrawal Service; Banking Transaction Service; PostgreSQL
+Test Focus: Retry; timeout; concurrent duplicate
+SB-014 – Update allocation after successful withdrawal
+Epic: EPIC-04   Priority: P0
+User Story: As the platform, I want bucket allocation reduced only after confirmed withdrawal success so that displayed balance is accurate.
+Acceptance Criteria
+•	Success reduces allocation.
+•	Failure does not reduce allocation.
+•	Progress/remaining recalculated.
+•	Reconciliation detects incomplete local completion.
+Dependencies / Technical Touchpoints: Withdrawal + Bucket Service; outbox
+Test Focus: Success/failure/reversal/concurrency/reconciliation
+SB-015 – View bucket transactions
+Epic: EPIC-05   Priority: P0
+User Story: As a customer, I want to view contribution and withdrawal history for a bucket so that I can understand how its balance changed.
+Acceptance Criteria
+•	Shows contributions/withdrawals with amount, date/time, status.
+•	Only owned bucket history returned.
+•	Pagination supported.
+Dependencies / Technical Touchpoints: GET /v1/buckets/{id}/transactions
+Test Focus: Empty history; pages; ordering; auth
+SB-016 – Expose transaction status/reference
+Epic: EPIC-05   Priority: P0
+User Story: As a customer, I want transaction status and a reference where appropriate so that I can track financial actions.
+Acceptance Criteria
+•	Statuses understandable.
+•	External/reference ID shown where appropriate.
+•	Internal service names not exposed.
+Dependencies / Technical Touchpoints: Transaction model; UX status vocabulary
+Test Focus: All states; missing reference
+SB-017 – Configure recurring contribution
+Epic: EPIC-06   Priority: P0
+User Story: As a customer, I want to configure a recurring contribution for a bucket so that I can save consistently.
+Acceptance Criteria
+•	Select bucket; amount; supported frequency; schedule/start date; next execution date; explicit confirmation; status stored.
+Dependencies / Technical Touchpoints: POST /v1/buckets/{id}/recurring-contributions; Recurring Service
+Test Focus: Schedule validation; ownership; frequency
+SB-018 – Display recurring schedule status
+Epic: EPIC-06   Priority: P0
+User Story: As a customer, I want to see my recurring contribution status so that I know whether future contributions are scheduled.
+Acceptance Criteria
+•	Shows amount, frequency, status, next execution.
+•	Schedule is distinguishable from completed transactions.
+•	Pause/edit/cancel only if supported.
+Dependencies / Technical Touchpoints: Recurring Service; recurring APIs
+Test Focus: Scheduled/paused/cancelled/next date
+SB-019 – Execute scheduled contribution
+Epic: EPIC-06   Priority: P0
+User Story: As the platform, I want due recurring contributions to be processed asynchronously so that scheduled saving is resilient.
+Acceptance Criteria
+•	Due schedule creates execution command/event.
+•	Processing is durable.
+•	Uses controlled contribution workflow.
+•	Outcome recorded.
+•	Duplicate execution prevented.
+Dependencies / Technical Touchpoints: EventBridge Scheduler; SQS; Recurring + Contribution Service; Banking Adapter
+Test Focus: Due schedule; duplicate delivery; timeout; outcome
+SB-020 – Retry failed scheduled execution safely
+Epic: EPIC-06   Priority: P0
+User Story: As the platform, I want failed recurring executions to retry safely so that temporary outages do not permanently lose a scheduled contribution.
+Acceptance Criteria
+•	Transient failures retry.
+•	Unprocessable messages go to DLQ.
+•	Retries cannot duplicate financial processing.
+•	Final failure is observable/reviewable.
+Dependencies / Technical Touchpoints: SQS retry/DLQ; idempotency; observability
+Test Focus: Transient/repeated failure; DLQ; replay
+SB-021 – Send contribution/withdrawal notifications
+Epic: EPIC-07   Priority: P1
+User Story: As a customer, I want useful notifications about important bucket activity so that I know when financial actions complete or fail.
+Acceptance Criteria
+•	Notifications triggered from approved outcomes.
+•	Notification failure does not block core financial processing.
+•	Customer-friendly messages.
+•	Preferences respected if implemented.
+Dependencies / Technical Touchpoints: Notification Service; EventBridge/SQS; provider
+Test Focus: Success/failure/provider outage/duplicates
+SB-022 – Authenticate customer with OIDC/JWT
+Epic: EPIC-08   Priority: P0
+User Story: As a customer, I want to access Savings Bucket using the bank identity so that my financial goals are protected.
+Acceptance Criteria
+•	Valid authentication required.
+•	JWT validation at defined boundary.
+•	Expired/invalid tokens rejected.
+•	Trusted customer identity propagated.
+Dependencies / Technical Touchpoints: API Gateway; OAuth 2.0/OIDC; Cognito option
+Test Focus: Valid/missing/expired/invalid token
+SB-023 – Authorize bucket ownership
+Epic: EPIC-08   Priority: P0
+User Story: As the platform, I want object-level authorization so that customers can access only their own buckets.
+Acceptance Criteria
+•	Every bucket read/write checks ownership.
+•	Cross-customer access is safely denied.
+•	All bucket operations test authorization.
+Dependencies / Technical Touchpoints: JWT claims; Bucket Service
+Test Focus: Owner/non-owner/manipulated ID
+SB-024 – Audit financial state changes
+Epic: EPIC-08   Priority: P0
+User Story: As the platform, I want traceable financial state changes so that operations can be investigated and audited.
+Acceptance Criteria
+•	Contribution/withdrawal lifecycle traceable.
+•	Relevant timestamps/identifiers/outcomes retained.
+•	Audit data protected.
+•	Correlation/reference IDs support investigation.
+Dependencies / Technical Touchpoints: Audit records; PostgreSQL; observability
+Test Focus: Lifecycle trace; access control
+SB-025 – Add correlation IDs and telemetry
+Epic: EPIC-08   Priority: P0
+User Story: As an operator, I want requests and async events to be traceable across services so that failures can be diagnosed.
+Acceptance Criteria
+•	Correlation/trace IDs on requests.
+•	IDs propagate through calls/events.
+•	Logs/metrics/traces avoid sensitive data leakage.
+•	Operational alarms identify failures.
+Dependencies / Technical Touchpoints: CloudWatch; distributed tracing
+Test Focus: Trace propagation; async correlation; PII checks
+SB-026 – Implement API throttling and error handling
+Epic: EPIC-08   Priority: P1
+User Story: As an operator, I want predictable API limits and customer-friendly errors so that the system remains stable and understandable.
+Acceptance Criteria
+•	API Gateway throttling.
+•	Agreed error model.
+•	400/401/403/404/409/422/429/500/503 mapped consistently.
+•	Raw exceptions not exposed.
+Dependencies / Technical Touchpoints: API Gateway; API error model
+Test Focus: Rate limit; error classes; malformed input
+SB-027 – Validate concurrency and duplicate processing
+Epic: EPIC-08   Priority: P0
+User Story: As the platform, I want concurrent bucket updates to be safe so that balance and allocation cannot be corrupted.
+Acceptance Criteria
+•	Concurrent operations cannot create invalid balance.
+•	Optimistic/row locking used.
+•	Unique constraints protect idempotency.
+•	Concurrency tests deterministic.
+Dependencies / Technical Touchpoints: PostgreSQL; locking/versioning
+Test Focus: Parallel contributions/withdrawals/mixed operations
+SB-028 – Backup and recovery readiness
+Epic: EPIC-08   Priority: P1
+User Story: As an operator, I want recoverable data and documented restoration procedures so that the service can recover from major failure.
+Acceptance Criteria
+•	RDS backup/restore configured.
+•	Recovery procedure documented/testable.
+•	Targets align with design.
+•	Critical reconciliation data included.
+Dependencies / Technical Touchpoints: RDS backups; DR design; runbooks
+Test Focus: Restore; consistency; recovery timing
+SB-029 – Personalized savings recommendation
+Epic: EPIC-09   Priority: Future
+User Story: As a customer, I want personalized savings guidance so that I can make more informed progress toward goals.
+Acceptance Criteria
+•	Advisory only.
+•	Governed/authorized data.
+•	Purpose/basis explained where feasible.
+•	AI cannot initiate/execute money movement.
+•	AI outage does not block MVP.
+Dependencies / Technical Touchpoints: Future governed data layer; Recommendation Service; AI platform
+Test Focus: Quality; privacy; isolation; fallback
+SB-030 – Intelligent goal adjustment
+Epic: EPIC-09   Priority: Future
+User Story: As a customer, I want guidance when my target or saving pace appears unrealistic so that I can make informed adjustments.
+Acceptance Criteria
+•	Advisory suggestion only.
+•	Customer controls any target change.
+•	No automatic money movement.
+•	Suggestion clearly separated from confirmed action.
+Dependencies / Technical Touchpoints: Recommendation Service; future AI
+Test Focus: Scenario; explainability; action control
+SB-031 – Smart bucket recommendation
+Epic: EPIC-09   Priority: Future
+User Story: As a customer, I want useful savings-goal suggestions so that I can organize savings effectively.
+Acceptance Criteria
+•	Advisory suggestions.
+•	Customer can accept/ignore/dismiss.
+•	Sensitive data governed/minimized.
+•	AI cannot create/fund bucket without explicit action.
+Dependencies / Technical Touchpoints: Future AI architecture; governed data
+Test Focus: Suggestion; privacy; explicit action
+5. Release Plan
+Release	Objective	Capabilities	Exit Condition	Priority
+R0 – Foundation	Platform baseline	Auth, authorization, API boundary, telemetry, throttling baseline	Authenticated/authorized API path works	P0/P1
+R1 – Goal MVP	Create/understand goals	SB-001–006	Customer can create/list/open/understand bucket	P0
+R2 – Money Movement	Safe contributions/withdrawals	SB-007–014, SB-027	Success/failure/duplicate/concurrent flows safe	P0
+R3 – History	Traceable activity	SB-015–016, SB-024	Customer history and operator traceability work	P0
+R4 – Recurring	Automated saving	SB-017–020	Schedule, execution, retry/DLQ validated	P0
+R5 – Production Readiness	Operational quality	SB-021, SB-025–028	Monitoring, notifications and recovery demonstrated	P1
+R6 – Future AI	Advisory intelligence	SB-029–031	AI/privacy/isolation design approved	Future
+6. Story-to-API Mapping
+Capability	API	Primary Service	Stories
+Create bucket	POST /v1/buckets	Bucket Service	SB-001, SB-002
+List buckets	GET /v1/buckets	Bucket Service	SB-003
+Bucket detail	GET /v1/buckets/{bucketId}	Bucket Service	SB-004–006
+Contribution	POST /v1/buckets/{bucketId}/contributions	Contribution Service	SB-007–010
+Withdrawal	POST /v1/buckets/{bucketId}/withdrawals	Withdrawal Service	SB-011–014
+Transactions	GET /v1/buckets/{bucketId}/transactions	History/Bucket Service	SB-015–016
+Recurring create	POST /v1/buckets/{bucketId}/recurring-contributions	Recurring Service	SB-017
+Recurring update	PATCH /v1/buckets/{bucketId}/recurring-contributions/{id}	Recurring Service	SB-018
+Authentication	API Gateway + OIDC/JWT	API/Identity	SB-022
+7. Story-to-Data Mapping
+Entity	Purpose	Owner	Stories
+Savings Bucket	Goal metadata and logical allocation	Bucket Service	SB-001–006, SB-010, SB-014
+Bucket Transaction	Contribution/withdrawal lifecycle	Contribution/Withdrawal domain	SB-007–016
+Recurring Contribution	Schedule and execution state	Recurring Service	SB-017–020
+Outbox Event	Reliable event intent	Owning service	SB-010, SB-014, SB-019–020
+Audit Records	Traceable financial state changes	Platform/operational design	SB-024
+8. Cross-Cutting Acceptance Requirements
+Area	Requirement	Applies To
+Security	OIDC/JWT, object-level authorization, least privilege, no secret leakage	SB-022–024
+Financial safety	No false success; explicit confirmation; authoritative outcome gates allocation update	SB-007–014
+Idempotency	Retries/duplicate requests/events are safe	SB-008, SB-013, SB-019, SB-020, SB-027
+Consistency	ACID local state; locking/versioning; reconciliation	SB-010, SB-014, SB-027
+Observability	Correlation IDs, logs, metrics, traces, auditability	SB-024–025
+Error handling	Customer-readable 400/401/403/404/409/422/429/500/503 mapping	SB-002, SB-009, SB-016, SB-026
+Accessibility	Keyboard, labels, non-color status cues	All customer-facing MVP
+Performance	Initial read p95 ≤500 ms; transaction orchestration p95 ≤2 s excluding banking dependency	Platform/testing
+Recovery	Initial RPO ≤15 min and RTO ≤1 hr design targets	SB-028
+9. PRD → UX → SDD → Backlog Traceability
+Capability	UX / Customer Flow	Backlog	SDD Coverage	Release
+Create bucket	Create Bucket journey	SB-001, SB-002	Bucket Service + POST /v1/buckets	R1
+Balance/progress	Bucket Detail	SB-004–006	Bucket Service + PostgreSQL	R1
+Add money	Add Money journey	SB-007–010	Contribution + Banking Transaction	R2
+Withdraw	Withdraw journey	SB-011–014	Withdrawal + Banking Transaction	R2
+History	Transaction History	SB-015–016	Transaction records/history API	R3
+Recurring	Recurring Contribution journey	SB-017–020	Recurring + EventBridge/SQS	R4
+Security	Authentication/authorization UX	SB-022–023	API Gateway/OIDC/JWT	R0
+Operations	Status/error/audit UX	SB-024–028	CloudWatch/tracing/recovery	R0/R5
+Future AI	Recommendation experience	SB-029–031	Recommendation Service / AI	R6
+10. Delivery Dependency Map
+Foundation	Bucket MVP	Money Movement	History	Recurring	Operations	Validation
+
+•	Foundation establishes authentication, API boundary, database connectivity, service runtime and basic observability.
+•	Bucket MVP stabilizes ownership and allocation before money movement.
+•	Money movement depends on the banking adapter contract and idempotency/state model.
+•	Recurring contribution reuses the controlled contribution workflow rather than creating a second financial path.
+•	Operations and validation span all releases.
+10.1 Key Technical Dependencies
+Dependency	Why It Matters	Resolution
+Banking Transaction Service contract	Authoritative debit/credit result drives allocation	Define capstone adapter before R2
+Identity provider	Customer identity and authorization context	OIDC/JWT; Cognito is capstone option
+PostgreSQL schema	Bucket/transaction consistency	Finalize migrations before R1/R2
+Event schema	Recurring/asynchronous outcomes	Version domain events before R4
+Scheduler	Triggers due recurring contributions	EventBridge Scheduler design
+Notification provider	Optional alerts	Select before R5 if implemented
+AI platform/data governance	Future recommendation capabilities	Defer to AI phase
+11. Testing Backlog
+Test Type	Scope	Key Stories	Exit Expectation
+Unit	Validation, progress, state transitions	SB-002, SB-005, SB-009, SB-012	Domain rules covered
+API/Contract	Schemas, JWT claims, errors	SB-001–026	Contracts stable
+Integration	PostgreSQL, messaging, banking adapter	SB-008–020	Dependencies behave as designed
+End-to-End	Create → contribute → progress → withdraw → history → recurring	All MVP	Complete journey works
+Reliability	Retry, duplicate, timeout, recovery	SB-008, SB-013, SB-019–020, SB-027	No duplicate financial processing
+Concurrency	Simultaneous bucket updates	SB-010, SB-014, SB-027	Allocation remains valid
+Security	Authentication, authorization, secret exposure	SB-022–024	Unauthorized access blocked
+Performance	Latency, concurrency, queue/DB behavior	Platform	Targets validated
+Recovery/DR	Backup/restore/reconciliation	SB-028	Recovery demonstrated
+12. Product and UX Decision Log
+Decision	Current Position	Backlog Impact	Status
+Bucket model	Logical allocation, not separate account	Allocation updates gated by banking outcome	Decided
+Money source of truth	Banking account/transaction capability	Contribution/withdrawal depend on adapter	Decided
+Runtime	ECS Fargate	No Kubernetes-specific implementation required	Decided
+Identity	OAuth 2.0/OIDC + JWT; Cognito option	Auth/authorization stories	Decided
+Recurring model	Event-driven EventBridge/SQS	Schedule and execution stories separated	Decided
+AI role	Advisory only	Future stories cannot move money	Decided
+Recurring frequency choices	Not defined	SB-017 depends on final rule	Open
+Target date mandatory/optional	Not defined	SB-002 depends on final rule	Open
+Notification preferences	Optional	SB-021 P1	Open
+13. Implementation Sequence
+1.	Establish repository, branching, coding standards and service skeletons.
+2.	Provision development infrastructure and PostgreSQL.
+3.	Implement OIDC/JWT authentication and bucket ownership authorization.
+4.	Implement bucket creation, listing, detail and progress.
+5.	Implement contribution workflow and banking adapter contract.
+6.	Implement withdrawal workflow and allocation safety.
+7.	Add transaction history and lifecycle states.
+8.	Implement recurring configuration and asynchronous execution.
+9.	Add retries, DLQ, reconciliation, observability and audit controls.
+10.	Execute end-to-end, concurrency, security, performance and recovery validation.
+11.	Deploy validated MVP to target AWS environment.
+12.	Only after MVP stability, evaluate future AI capabilities.
+14. Risks and Mitigation Backlog
+Risk	Affected Stories	Mitigation	Validation
+Distributed financial/bucket inconsistency	SB-008–014, SB-019	Explicit states, idempotency, outbox, reconciliation	Failure injection + reconciliation
+Duplicate events	SB-019–020, SB-027	Event IDs, unique constraints, idempotent consumers	Duplicate delivery
+Incorrect allocation	SB-010, SB-014, SB-027	Single owner, ACID, locking/versioning	Concurrency
+Service proliferation	All	Domain-oriented boundaries; avoid CRUD microservices	Architecture review
+AI privacy/model risk	SB-029–031	Governed data, advisory-only, controlled rollout	Privacy/model evaluation
+Operational complexity	Platform	Managed AWS services and ECS Fargate	Operational readiness
+15. Capstone Completion Criteria
+•	All P0 MVP stories pass acceptance criteria.
+•	Customer can create and view savings goals.
+•	Contributions and withdrawals have safe financial states.
+•	Allocation updates only after confirmed financial outcomes.
+•	Duplicate requests/events do not duplicate financial processing.
+•	Progress and transaction history are visible.
+•	Recurring contribution is configured/executed asynchronously with retry/DLQ behavior.
+•	Authentication and bucket-level authorization are demonstrated.
+•	Observability and auditability are demonstrated.
+•	Core failure, concurrency, security and performance scenarios are tested.
+•	Deployment and recovery procedures are documented.
+•	Future AI remains isolated and advisory.
+FDE Handoff
+This backlog is ready to be converted into Jira, Azure DevOps or GitHub Issues. The next artifact is the Technical Implementation Plan, followed by API/OpenAPI specification and physical database design. Retain each Story ID so delivery remains traceable to the PRD, UX and SDD.
+
+Appendix A – Suggested Work Item Fields
+Field	Required	Example
+Story ID	Yes	SB-008
+Epic	Yes	EPIC-03 Contributions
+Title	Yes	Process contribution with idempotency
+User Story	Yes	As a platform...
+Priority	Yes	P0
+Acceptance Criteria	Yes	Testable checklist / Given-When-Then
+Dependencies	Yes	Banking adapter, PostgreSQL
+UX Reference	Recommended	Add Money journey
+API Reference	Recommended	POST /v1/buckets/{id}/contributions
+Test Cases	Yes	Retry, timeout, duplicate
+Status	Yes	To Do / In Progress / Review / Done
+Release	Yes	R2
+Owner	Recommended	Engineering owner
+Appendix B – Work Item Hierarchy
+Epic	Feature	User Story	Task	Test Case
+
+Example: EPIC-03 Contributions → Feature: Contribution Processing → SB-008 Process contribution with idempotency → tasks for API validation, idempotency persistence, banking adapter call, outcome handling and tests.

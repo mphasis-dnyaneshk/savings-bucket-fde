@@ -1,0 +1,318 @@
+UX & USER JOURNEY DOCUMENT
+Attribute	Value
+Document Type	UX & User Journey Document
+Project	Savings Bucket
+Domain	Digital Banking / Personal Finance
+Version	1.0
+Status	UX Definition
+Date	September 2026
+
+Purpose
+Translate the approved Savings Bucket PRD and SDD into a clear customer experience, user journeys, screen-level behavior, usability expectations, and acceptance-oriented UX flows. This document bridges product definition, system design, and implementation.
+
+1. Document Overview
+The Savings Bucket capability gives customers a structured, goal-oriented way to organize, track, and grow savings around multiple financial objectives. The PRD defines customer value and MVP capabilities; the SDD defines the AWS/FastAPI/microservices architecture. This document defines how the customer should experience those capabilities.
+1.1 Source and Alignment
+•	Product source: Savings Bucket PRD, Version 1.0.
+•	Architecture source: Savings Bucket Final SDD, Version 2.0.
+•	MVP covers create bucket, target definition, add money, withdraw, balance/progress, transaction history, and recurring contributions.
+•	Future experience covers personalized savings recommendations, intelligent goal adjustment, and smart bucket recommendations.
+•	The bucket is a logical allocation against the authoritative bank account; it is not presented as a separate bank account.
+1.2 UX Objective
+Make financial goals immediately understandable and make routine saving actions simple, transparent, safe, and confidence-building.
+2. UX Principles
+Principle	UX implication
+Goal-first	Start with what the customer is saving for.
+Visible progress	Clearly show saved, target, remaining and progress.
+Simple actions	Keep create, contribute, withdraw and recurring flows short.
+Financial transparency	Explain amount, destination/context and transaction status.
+Trust and control	Show what will happen before financial confirmation.
+Safe by default	Validate and confirm financial/destructive actions.
+Consistency	Use the same balance/progress/status concepts everywhere.
+Accessible	Do not rely on color alone; support keyboard/screen readers.
+Privacy-aware	Display only information needed for the experience.
+AI as advisor	Future AI is advisory and cannot execute money movement.
+
+3. Personas and Primary Use Cases
+User Group	Typical Goal	Primary UX Need
+Young professionals	Emergency fund, vacation, vehicle	Quick setup and visible progress
+Families	Education, home purchase	Multiple goals and predictable contributions
+High-income customers	Multiple financial objectives	Organization and clear allocation
+Students	Education, travel, planned purchases	Simple saving discipline
+New customers	Initial savings goals	Guided low-friction onboarding
+3.1 Primary Use Cases
+1.	Create a savings goal.
+2.	Understand current savings and goal progress.
+3.	Contribute money to a selected goal.
+4.	Withdraw money from a goal.
+5.	Review contribution and withdrawal history.
+6.	Set up recurring contributions.
+7.	Receive future personalized guidance without giving AI control over money movement.
+4. Information Architecture
+Recommended primary navigation:
+Savings Dashboard	Bucket Detail	Add / Withdraw	Transactions
+↓↓↓
+Area	Purpose	Key Content
+Savings Dashboard	Portfolio view	Buckets, progress, actions
+Create Bucket	Create a goal	Name, target amount, target date
+Bucket Detail	Manage one goal	Balance, progress, target date, recurring contribution
+Add Money	Contribute	Amount, confirmation, result
+Withdraw	Return allocated funds	Amount, available allocation, confirmation, result
+Transactions	History	Type, amount, date, status
+Recurring Contribution	Automate saving	Amount, frequency, start/next date, status
+Recommendations – Future	Personalized guidance	Advisory insights
+
+5. End-to-End Customer Journey
+Stage	Customer Goal	Customer Action	System Response	Feeling	UX Opportunity
+Discover	Understand goals	Open Savings Bucket	Show dashboard	Oriented	Explain value immediately
+Create	Define goal	Enter name/target/date	Validate and create	Confident	Keep form short
+Contribute	Make progress	Select bucket + amount	Process movement/update allocation	In control	Show amount/destination clearly
+Track	Know status	Open bucket	Show balance/progress	Informed	Clear progress visualization
+Automate	Build discipline	Set recurring contribution	Save schedule	Reassured	Make next execution explicit
+Review	Understand activity	Open transactions	Show history/status	Confident	Use clear status labels
+Adjust	React to change	Withdraw/update goal	Validate and update	Safe	Explain impact before confirmation
+Improve – Future	Get guidance	View recommendation	Show advisory insight	Supported	Explain recommendation basis
+
+6. MVP User Journeys
+6.1 Create Savings Bucket
+Open Savings Bucket dashboard.	Select Create Bucket.	Enter bucket/goal name.	Enter positive target amount.	Enter target date according to product rule.	Review and confirm.
+↓↓↓↓↓
+8.	Open Savings Bucket dashboard.
+9.	Select Create Bucket.
+10.	Enter bucket/goal name.
+11.	Enter positive target amount.
+12.	Enter target date according to product rule.
+13.	Review and confirm.
+14.	System creates bucket and opens detail with initial balance/progress.
+6.2 Add Money
+Open selected bucket.	Select Add Money.	Enter contribution amount.	Review bucket and amount.	Confirm.	Financial movement is processed through the banking capability.
+↓↓↓↓↓
+15.	Open selected bucket.
+16.	Select Add Money.
+17.	Enter contribution amount.
+18.	Review bucket and amount.
+19.	Confirm.
+20.	Financial movement is processed through the banking capability.
+21.	Only after confirmed financial success does logical allocation update.
+22.	Show updated balance/progress and transaction status.
+6.3 Withdraw Money
+Open bucket.	Select Withdraw.	Enter amount.	Validate against available bucket allocation.	Review resulting balance.	Confirm.
+↓↓↓↓↓
+23.	Open bucket.
+24.	Select Withdraw.
+25.	Enter amount.
+26.	Validate against available bucket allocation.
+27.	Review resulting balance.
+28.	Confirm.
+29.	Process withdrawal and show final status.
+6.4 View Progress
+Open dashboard or bucket detail.	Review saved amount, target, remaining amount, progress percentage and target date.	Review recurring contribution if configured.
+↓↓
+30.	Open dashboard or bucket detail.
+31.	Review saved amount, target, remaining amount, progress percentage and target date.
+32.	Review recurring contribution if configured.
+6.5 Transaction History
+Open bucket detail.	Select Transactions.	Review chronological contributions and withdrawals.	Open transaction detail if needed.
+↓↓↓
+33.	Open bucket detail.
+34.	Select Transactions.
+35.	Review chronological contributions and withdrawals.
+36.	Open transaction detail if needed.
+6.6 Recurring Contribution
+Select recurring contribution.	Enter amount and frequency.	Select start/schedule information.	Review next execution date.	Confirm.	Show configured schedule and status.
+↓↓↓↓↓
+37.	Select recurring contribution.
+38.	Enter amount and frequency.
+39.	Select start/schedule information.
+40.	Review next execution date.
+41.	Confirm.
+42.	Show configured schedule and status.
+43.	Future execution is asynchronous; completion is shown separately in transaction history.
+Critical UX rule
+Do not imply that a bucket is a separate bank account. Customer-facing wording should describe money as savings assigned to a goal. The SDD defines the bucket as a logical allocation while actual funds remain authoritative in the banking account capability.
+
+7. Screen / Wireframe Specifications
+7.1 Savings Dashboard
+•	Savings Bucket header
+•	Summary of total allocated savings
+•	Create Bucket CTA
+•	Bucket cards: name, saved/target, progress, target date
+•	Quick actions: View, Add Money, Withdraw where applicable
+•	Optional future recommendation card
+7.2 Bucket Detail
+•	Bucket name/status
+•	Saved amount / target amount
+•	Progress indicator
+•	Remaining amount
+•	Target date
+•	Add Money and Withdraw CTAs
+•	Recurring Contribution section
+•	Recent Transactions
+•	View All Transactions
+7.3 Create Bucket
+•	Goal name
+•	Target amount
+•	Target date
+•	Review/continue
+•	Inline validation
+7.4 Add Money
+•	Selected bucket
+•	Current allocation
+•	Contribution amount
+•	Funding account context
+•	Review
+•	Confirm
+•	Processing/success/failure states
+7.5 Withdraw
+•	Selected bucket
+•	Available allocation
+•	Withdrawal amount
+•	Resulting balance preview
+•	Review impact
+•	Confirm
+•	Result status
+7.6 Recurring Contribution
+•	Bucket
+•	Amount
+•	Frequency
+•	Start date
+•	Next execution date
+•	Status
+•	Edit/pause/cancel where supported
+8. Validation and Error UX
+Scenario	Customer Message Pattern	Placement	Recovery
+Missing required field	Please enter [field].	Inline	Correct value
+Invalid amount	Enter an amount greater than zero.	Inline	Correct amount
+Insufficient allocation	Withdrawal exceeds available bucket balance.	Inline/summary	Reduce amount
+Session expired	Your session has expired. Please sign in again.	Global	Re-authenticate
+Unauthorized bucket	This bucket is not available to your account.	Page/toast	Return to dashboard
+Duplicate request	This request is already processed or in progress.	Result	Open transaction
+Dependency unavailable	We could not complete this request right now.	Result	Retry safely
+Pending	Your contribution is still being processed.	Transaction detail	Refresh/return later
+Consistency with SDD
+Technical HTTP errors should be translated into understandable customer messages. Do not expose raw exception text or internal service names.
+
+9. Financial Action Safety
+•	Require explicit confirmation before Add Money and Withdraw.
+•	Show bucket name and amount on confirmation.
+•	Never show a successful financial result before the authoritative outcome is known.
+•	Distinguish Pending from Success.
+•	Use idempotent backend behavior so repeated taps do not create duplicate processing.
+•	Protect the submit control during processing while allowing safe recovery.
+•	Show transaction status/reference after completion where appropriate.
+•	Keep AI recommendations outside the financial transaction execution path.
+
+10. Accessibility and Usability Requirements
+•	Keyboard-accessible controls and logical focus order.
+•	Labels associated with all inputs.
+•	Errors must not depend on color alone.
+•	Progress has a textual equivalent such as “₹75,000 of ₹1,50,000 – 50%”.
+•	Mobile touch targets should be appropriately sized.
+•	Use clear currency formatting.
+•	Confirmation screens distinguish primary and destructive actions.
+•	Loading states explain what is happening.
+•	Asynchronous status changes should be screen-reader accessible.
+•	Avoid technical wording such as “logical allocation” in primary UI; use customer-friendly language.
+11. Responsive / Mobile-first Behavior
+Area	Mobile	Tablet	Desktop/Web
+Dashboard	Stacked cards	2-column cards	3+ column grid
+Bucket detail	Vertical sections	Balanced columns	Summary + activity
+Add/Withdraw	Full-page or bottom-sheet	Modal/page	Modal/page
+Transactions	List + detail	List/table hybrid	Table + filters
+Recurring	Step-by-step	Form card	Form + summary
+
+12. UX Mapping to Architecture
+Experience	Backend Capability	Event/State	UX Requirement
+Create bucket	Bucket Service	Bucket created	Show bucket detail
+Add money	Contribution + Banking Transaction	PENDING → SUCCESS/FAILED/REVERSED	Show accurate status
+Update allocation	Bucket Service	ContributionCompleted	Refresh balance/progress only after valid outcome
+Recurring setup	Recurring Service	Schedule created	Show configured status and next execution
+Recurring execution	Recurring + EventBridge/SQS	Execution states	Show execution outcome separately
+Notifications	Notification Service	Event-driven	Optional alerts
+Future recommendation	Recommendation Service/AI	Advisory result	Never initiate money movement
+
+13. Future AI Experience
+Future capabilities from the PRD include personalized savings recommendations, intelligent goal adjustment and smart bucket recommendations. The SDD isolates AI from financial transaction execution.
+Governed Customer Data	AI / Recommendation Engine	Recommendation API	Customer
+↓↓↓
+•	Recommendations are suggestions, not commands.
+•	Where feasible, explain why a recommendation is shown.
+•	AI cannot create, approve, execute or modify financial transactions.
+•	Use governed data and minimize unnecessary exposure of customer information.
+•	Introduce feedback mechanisms in future UX.
+•	Roll out AI only after MVP stability and privacy/data controls are established.
+14. Journey Acceptance Criteria
+Journey	Acceptance Criterion	Priority
+Create Bucket	Create with name, target amount and target date; see bucket immediately.	Must
+Add Money	Select bucket, enter amount, confirm and see accurate result state.	Must
+Withdraw	Cannot withdraw more than available allocation.	Must
+Progress	Understand saved, target, remaining and percentage.	Must
+History	See contribution/withdrawal records and statuses.	Must
+Recurring	Configure schedule and see status/next execution.	Must
+Error recovery	Receive understandable feedback and safe next action.	Must
+Accessibility	Core journeys usable with keyboard, labels and non-color cues.	Must
+AI recommendation	Future recommendations cannot execute money movement.	Future
+
+15. Usability Validation Plan
+For the capstone, usability validation can be performed as structured scenario testing without requiring external stakeholders.
+44.	Ask a participant to create an Emergency Fund with a defined target.
+45.	Ask them to locate Savings Bucket.
+46.	Ask them to create the bucket without guidance.
+47.	Ask them to add money and explain what they expect to happen.
+48.	Ask them to locate updated balance and progress.
+49.	Ask them to configure a monthly recurring contribution.
+50.	Ask them to locate transaction history and explain a status.
+51.	Ask them to withdraw part of the allocation and explain the impact.
+52.	Record confusion, errors, time-on-task and qualitative feedback.
+53.	Iterate on the UX before implementation is considered complete.
+Suggested Measures
+•	Task completion rate
+•	Critical error rate
+•	Time to complete core journeys
+•	Number of clarification/help requests
+•	User confidence after financial confirmation
+•	Comprehension of bucket allocation versus actual bank-account balance
+•	Ease of recurring contribution setup
+16. Open UX Decisions
+Decision	Current Position	When to Finalize
+Exact visual design / brand system	Not defined in PRD/SDD	Before frontend implementation
+Target date required vs optional	Exact rule not specified	Before UI/API finalization
+Withdrawal confirmation pattern	Confirmation recommended	Prototype review
+Recurring frequency options	Conceptually supported; exact choices not defined	Before recurring UI build
+Notification preferences	Optional in SDD	Before notification implementation
+AI explanation/feedback UX	Future scope	AI phase
+
+17. Handoff to Product Backlog and Implementation
+UX Journey	Acceptance Criteria	User Story	API/Data Contract	Implementation	Test
+↓↓↓↓↓
+Backlog Item	UX Artifact	Technical Dependency	Test Focus
+Create Bucket	Create journey + form	POST /v1/buckets	Validation + persistence
+Add Money	Add Money journey	Contribution + banking integration	Idempotency + status
+Withdraw	Withdraw journey	Withdrawal + banking integration	Balance validation + status
+View Progress	Bucket detail	GET bucket	Calculation + consistency
+Transaction History	History journey	GET transactions	Pagination + statuses
+Recurring Contribution	Recurring journey	Recurring API + scheduler	Scheduling + retries
+
+18. Final UX Summary
+The Savings Bucket UX should make goal-based saving simple, visible and trustworthy. The core experience begins with a dashboard of goals, moves through concise goal creation and money-action flows, and continuously exposes balance, progress, target date and transaction history. Recurring contributions support disciplined saving while clearly separating a configured schedule from an actually completed financial transaction.
+Capstone Design Position
+Discovery established the customer problem; the PRD defined product value and MVP scope; the SDD established the AWS implementation architecture; this UX document defines how the customer interacts with that system. The next deliverables are the Product Backlog / User Stories and the Technical Implementation Plan.
+
+Appendix A – Recommended Wireframe Set
+•	A1 – Savings Dashboard
+•	A2 – Create Bucket
+•	A3 – Bucket Detail
+•	A4 – Add Money / Review / Result
+•	A5 – Withdraw / Review / Result
+•	A6 – Transaction History
+•	A7 – Recurring Contribution Setup / Status
+•	A8 – Future Recommendation Card
+Appendix B – UX Status Vocabulary
+Status	Meaning	Customer Presentation
+Pending	Request accepted but final outcome not confirmed	Processing / pending
+Success	Financial operation completed successfully	Completed
+Failed	Operation did not complete successfully	Could not be completed
+Reversed	Previously successful operation was reversed	Reversed
+Scheduled	Recurring configuration exists	Scheduled
+Paused	Recurring configuration exists but execution disabled	Paused
+

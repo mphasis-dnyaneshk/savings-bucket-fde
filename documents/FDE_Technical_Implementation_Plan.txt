@@ -1,0 +1,285 @@
+Savings Bucket
+Technical Implementation Plan — v1.0
+Purpose: Bridge the approved Discovery, PRD, SDD, UX/User Journey and Product Backlog into an executable engineering plan.
+Architecture baseline: AWS, Python/FastAPI, PostgreSQL, API Gateway, ECS Fargate, EventBridge and SQS.
+1. Purpose and Scope
+•	Implement the MVP without changing the PRD intent.
+•	Buckets are logical allocations, not separate bank accounts.
+•	Actual money movement remains authoritative in the banking transaction capability.
+•	Use explicit states, idempotency, transactional outbox and reconciliation.
+•	Keep AI advisory-only and outside the money-movement path.
+2. Source Documents
+Artifact	Implementation role
+Discovery	Problem, users, hypotheses, MVP intent and business value.
+PRD	Requirements, scope, acceptance criteria and success indicators.
+SDD	AWS architecture, services, APIs, data model, NFRs, security and ADRs.
+UX & User Journey	Customer flows, validation, status language and financial-action safety.
+Product Backlog & User Stories	31 implementable stories, priorities, acceptance criteria and releases.
+3. Target Architecture
+Customer → Mobile/Web → API Gateway → OIDC/JWT → ECS/FastAPI services → PostgreSQL. Recurring contributions use EventBridge and SQS/DLQ. Notifications consume domain events. Banking/Core Banking is authoritative for actual account debits/credits.
+•	API Gateway: API boundary, routing, throttling and authorization integration.
+•	ECS Fargate: FastAPI runtime; EKS is intentionally not used in the current design.
+•	RDS PostgreSQL: durable relational store.
+•	EventBridge: event routing and scheduling.
+•	SQS + DLQ: durable asynchronous processing and failure isolation.
+•	Secrets Manager + KMS: secrets and encryption.
+•	CloudWatch + tracing: logs, metrics, traces and alerts.
+•	VPC/private subnets/security groups: network isolation.
+•	Future AI Recommendation Service: isolated advisory boundary.
+4. Implementation Principles
+•	Money first, allocation second; never show financial success before authoritative confirmation.
+•	Never trust the client for identity, bucket ownership or final transaction state.
+•	Every money-changing command must be idempotent.
+•	Propagate correlation IDs through synchronous and asynchronous flows.
+•	Use optimistic concurrency/versioning for competing bucket updates.
+•	Use transactional outbox for reliable event publication.
+•	Treat PENDING, SUCCESS, FAILED and REVERSED as distinct states.
+•	Use reconciliation for uncertain external outcomes.
+5. Recommended Repository Structure
+savings-bucket/
+├── services/
+│   ├── bucket-service/
+│   ├── contribution-service/
+│   ├── withdrawal-service/
+│   ├── recurring-contribution-service/
+│   └── notification-service/
+├── shared/
+│   ├── auth/
+│   ├── events/
+│   ├── errors/
+│   ├── idempotency/
+│   └── observability/
+├── db/
+│   ├── migrations/
+│   └── seed/
+├── infra/
+│   ├── terraform/
+│   └── environments/
+├── tests/
+│   ├── unit/
+│   ├── integration/
+│   ├── contract/
+│   └── e2e/
+├── docs/
+└── pipelines/
+6. Service Responsibilities
+Service	Responsibilities
+Bucket Service	Create/list/view buckets, validation and progress.
+Contribution Service	Initiate contribution and manage financial workflow/state.
+Withdrawal Service	Validate allocation, initiate withdrawal and manage state.
+Recurring Contribution Service	Schedules, due execution and safe retries.
+Notification Service	Consume domain events and notify customers.
+Future AI Service	Savings/goal recommendations; no transaction authority.
+7. API Implementation
+Endpoint	Priority	Main work
+POST /v1/buckets	P0	Validate and create bucket.
+GET /v1/buckets	P0	Return authenticated customer's buckets.
+GET /v1/buckets/{bucketId}	P0	Balance, target, progress and status.
+POST /v1/buckets/{bucketId}/contributions	P0	Validate ownership/idempotency; initiate workflow.
+POST /v1/buckets/{bucketId}/withdrawals	P0	Validate ownership/allocation; initiate workflow.
+GET /v1/buckets/{bucketId}/transactions	P0	History, state and reference.
+POST /v1/buckets/{bucketId}/recurring-contributions	P1	Create schedule.
+PATCH /v1/buckets/{bucketId}/recurring-contributions/{id}	P1	Pause/resume/update schedule.
+8. Database Implementation
+Table	Key design
+buckets	customer_id, target_amount, current_balance, target_date, status, version, timestamps.
+bucket_transactions	type, amount, status, external reference, idempotency_key, timestamps.
+recurring_contributions	frequency, next_execution_at, status, version.
+outbox_events	event_id, aggregate_id, event_type, payload, status, created_at, published_at.
+•	Use NUMERIC/DECIMAL for money; never floating point.
+•	Use UTC timestamps.
+•	Use constraints and foreign keys for important invariants.
+•	Index customer, bucket, transaction-history and due-schedule lookups.
+•	Use migrations for controlled schema changes.
+9. Contribution Workflow
+Authenticate and validate bucket ownership.
+Require an idempotency key.
+Create/retrieve command in PENDING state.
+Call authoritative banking capability.
+Persist external reference and outcome.
+On SUCCESS, update logical allocation transactionally.
+Write outbox event and publish asynchronously.
+On FAILED, do not increase bucket balance.
+On uncertain timeout, keep recoverable and reconcile; never assume failure.
+10. Withdrawal Workflow
+•	Authenticate and validate ownership.
+•	Check available logical allocation.
+•	Create idempotent PENDING command.
+•	Request authoritative banking transaction.
+•	Persist SUCCESS/FAILED/REVERSED and reference.
+•	Decrease logical allocation only after confirmed success.
+•	Emit outbox event.
+•	Use reconciliation for uncertain outcomes.
+11. Idempotency, Concurrency and Consistency
+Concern	Implementation
+Duplicate API request	Idempotency key + persisted command/result.
+Duplicate event	Event ID + consumer deduplication.
+Concurrent update	Optimistic version check + transaction.
+External timeout	PENDING/unknown outcome + reconciliation.
+DB commit vs publish	Transactional outbox.
+Message failure	SQS retry + DLQ + replay.
+Partial workflow	Explicit state machine + recovery/reconciliation.
+12. Recurring Contributions
+•	Persist schedule and next_execution_at.
+•	Trigger due work using EventBridge/EventBridge Scheduler.
+•	Send work to SQS for durable processing.
+•	Validate schedule status and execution idempotency.
+•	Use a unique reference per scheduled occurrence.
+•	Reuse the normal contribution workflow.
+•	Retry transient failures and route poison messages to DLQ.
+•	Notify customer according to outcome.
+13. Authentication and Authorization
+•	OAuth 2.0 / OpenID Connect with JWT.
+•	Validate signature, issuer, audience and expiry.
+•	Derive customer identity from the validated token.
+•	Check bucket ownership on every operation.
+•	Use stronger validation on financial APIs.
+•	Store secrets in Secrets Manager.
+•	Encrypt data in transit and at rest.
+14. Error and Status Model
+Status	Meaning
+PENDING	Outcome not yet confirmed; customer sees pending.
+SUCCESS	Financial movement succeeded and allocation is updated.
+FAILED	Financial movement did not complete.
+REVERSED	Previously successful movement was reversed.
+Use consistent API errors with stable code, safe message, correlation ID and optional field validation. Never expose stack traces or secrets.
+15. Observability
+•	Correlation IDs on every request/event.
+•	Structured logs with sensitive data redacted.
+•	Metrics for latency, errors, transaction outcomes, pending age, queue depth, DLQ count and reconciliation exceptions.
+•	Distributed tracing where supported.
+•	Alerts for sustained failures, DLQ growth, long-pending operations and reconciliation mismatches.
+16. Testing Strategy
+Layer	Focus
+Unit	Validation, calculations, state transitions, authorization, idempotency.
+Contract	API and event contracts.
+Integration	FastAPI + PostgreSQL + messaging + mocked banking capability.
+E2E	Create → contribute → progress → withdraw → history → recurring.
+Concurrency	Concurrent commands and version conflicts.
+Idempotency	Repeated requests/events produce one financial effect.
+Failure injection	Timeouts, duplicates, DB/external failures.
+Security	JWT, ownership isolation, injection, secrets and throttling.
+Performance	Read latency and workflow throughput.
+Recovery	Restore, DLQ replay and reconciliation.
+17. AWS Infrastructure
+•	Provision VPC, private application/database subnets and security groups.
+•	Provision encrypted RDS PostgreSQL with backups and appropriate Multi-AZ configuration.
+•	Provision ECS cluster, task definitions, services and autoscaling.
+•	Configure API Gateway routes.
+•	Configure EventBridge schedules/rules and SQS queues/DLQs.
+•	Create least-privilege IAM roles.
+•	Configure Secrets Manager and KMS.
+•	Configure CloudWatch logs, metrics and alarms.
+•	Externalize environment-specific configuration.
+18. CI/CD
+Checkout
+Lint/static checks
+Unit tests
+Build versioned container image
+Dependency/container security scan
+Migration validation
+Integration tests
+Push image to registry
+Deploy DEV
+Smoke/E2E tests
+Promote after validation
+Controlled production deployment
+Post-deployment health verification
+Promote immutable image versions; do not rebuild different binaries for each environment.
+19. Environment Strategy
+Environment	Purpose
+DEV	Development and automated validation.
+UAT	Integrated/product validation.
+PROD	Production with strict controls.
+DR	Disaster recovery validation.
+20. Security Checklist
+•	Least-privilege IAM and access review.
+•	TLS for service communication.
+•	Encryption at rest.
+•	Secrets Manager for credentials.
+•	No sensitive financial data in logs.
+•	Audit trail for financial state changes.
+•	API throttling/rate limiting.
+•	Input validation and parameterized DB access.
+•	Dependency/container vulnerability scanning.
+•	Defined retention/privacy rules before production.
+21. Backlog-to-Implementation Mapping
+Stories	Implementation output
+SB-001–SB-006	Bucket APIs, validation, schema, progress and reads.
+SB-007–SB-010	Contribution workflow, banking boundary, idempotency, allocation.
+SB-011–SB-014	Withdrawal workflow, allocation validation, idempotency.
+SB-015–SB-016	Transaction history/status/reference.
+SB-017–SB-020	Recurring APIs, EventBridge/SQS, retry/DLQ.
+SB-021	Notification consumers.
+SB-022–SB-028	Auth, ownership, audit, telemetry, throttling, concurrency, recovery.
+SB-029–SB-031	Future advisory AI.
+22. Development Release Sequence
+Release	Scope	Exit condition
+R0 Foundation	Repo, service skeleton, CI/CD, auth, DB, observability.	Deployable foundation.
+R1 Goal MVP	SB-001–SB-006.	Create/view goals and progress.
+R2 Money Movement	SB-007–SB-014.	Safe contribution/withdrawal workflows.
+R3 History	SB-015–SB-016.	Reliable history/status.
+R4 Recurring	SB-017–SB-020.	Scheduled execution with retry/DLQ.
+R5 Production Readiness	SB-021–SB-028.	Security, resilience and recovery validated.
+R6 Future AI	SB-029–SB-031.	Advisory AI isolated from transactions.
+23. Definition of Technical Done
+•	Acceptance criteria met.
+•	Automated tests cover normal and failure paths.
+•	Authorization/security implemented.
+•	Idempotency implemented for money-changing operations.
+•	Observability and correlation IDs present.
+•	Database migration version-controlled.
+•	API/event contracts documented.
+•	No critical/high unresolved security defect for release.
+•	Deployment reproducible through CI/CD.
+•	Rollback/recovery behavior tested.
+•	UX state behavior matches backend state model.
+•	Traceability to PRD, SDD and backlog maintained.
+24. Risks and Mitigations
+Risk	Mitigation
+Duplicate financial command	Mandatory idempotency and unique command keys.
+Banking timeout	Explicit PENDING + reconciliation.
+Allocation inconsistency	Money first + transaction + outbox + reconciliation.
+Duplicate event	Consumer deduplication.
+Poison message	Retry + DLQ + replay.
+Concurrent updates	Optimistic concurrency.
+Sensitive data leakage	Logging redaction + least privilege.
+Incorrect AI recommendation	Advisory-only AI with no transaction authority.
+25. Demo Plan
+•	Authenticate customer.
+•	Create Emergency Fund and Vacation buckets.
+•	Contribute and demonstrate PENDING → SUCCESS.
+•	Show allocation, progress and remaining amount.
+•	Show history/reference.
+•	Withdraw and demonstrate safe state transition.
+•	Configure recurring contribution.
+•	Demonstrate EventBridge/SQS execution.
+•	Demonstrate duplicate-request protection.
+•	Demonstrate failure/DLQ recovery.
+•	Show observability.
+•	Present future AI as advisory only.
+26. Immediate Next Engineering Tasks
+•	Create repository/service skeleton.
+•	Create OpenAPI specification.
+•	Create PostgreSQL ERD and migrations.
+•	Define request/response/error schemas.
+•	Define contribution and withdrawal state machines.
+•	Define domain events and schemas.
+•	Define idempotency strategy and constraints.
+•	Implement auth/authorization middleware.
+•	Implement Bucket Service first.
+•	Implement mocked Banking Transaction Service for tests.
+•	Implement Contribution and Withdrawal workflows.
+•	Implement outbox + EventBridge/SQS integration.
+•	Add automated tests continuously.
+•	Provision AWS DEV foundation and deploy the first service.
+27. Open Technical Decisions
+Decision	Current position	Validation
+Banking integration	Abstract/mock interface; banking remains authoritative.	Final integration contract.
+DB isolation	Logical ownership in PostgreSQL initially.	Assess physical/schema isolation.
+Event scheduling	EventBridge preferred.	Confirm scheduler/event model.
+Identity provider	OIDC/OAuth 2.0; Cognito option.	Select implementation IdP.
+AI platform	Future advisory; Bedrock/SageMaker candidates.	Select after MVP.
+NFR targets	99.9% availability; read p95 ≤500ms; orchestration p95 ≤2s excluding external latency; RPO ≤15m; RTO ≤1h.	Validate with load/cost testing.
+28. Handoff to Next Artifacts
+Next: API Specification / OpenAPI. Then Database Design / ERD and migration specification. These should directly drive implementation and remain traceable to the backlog.

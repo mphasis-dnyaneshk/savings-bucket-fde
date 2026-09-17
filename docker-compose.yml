@@ -1,0 +1,109 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: savings_bucket
+      POSTGRES_USER: savings
+      POSTGRES_PASSWORD: savings
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U savings -d savings_bucket"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  bucket-service:
+    build:
+      context: .
+      args:
+        SERVICE_MODULE: services.bucket_service.main
+    environment:
+      SERVICE_NAME: bucket-service
+      APP_ENV: local
+      DATABASE_URL: postgresql+psycopg://savings:savings@postgres:5432/savings_bucket
+      BANKING_ADAPTER_MODE: mock
+      EVENT_BUS_MODE: local
+      SQS_MODE: local
+    ports:
+      - "8001:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  contribution-service:
+    build:
+      context: .
+      args:
+        SERVICE_MODULE: services.contribution_service.main
+    environment:
+      SERVICE_NAME: contribution-service
+      APP_ENV: local
+      DATABASE_URL: postgresql+psycopg://savings:savings@postgres:5432/savings_bucket
+      BANKING_ADAPTER_MODE: mock
+      EVENT_BUS_MODE: local
+      SQS_MODE: local
+    ports:
+      - "8002:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  withdrawal-service:
+    build:
+      context: .
+      args:
+        SERVICE_MODULE: services.withdrawal_service.main
+    environment:
+      SERVICE_NAME: withdrawal-service
+      APP_ENV: local
+      DATABASE_URL: postgresql+psycopg://savings:savings@postgres:5432/savings_bucket
+      BANKING_ADAPTER_MODE: mock
+      EVENT_BUS_MODE: local
+      SQS_MODE: local
+    ports:
+      - "8003:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  recurring-contribution-service:
+    build:
+      context: .
+      args:
+        SERVICE_MODULE: services.recurring_contribution_service.main
+    environment:
+      SERVICE_NAME: recurring-contribution-service
+      APP_ENV: local
+      DATABASE_URL: postgresql+psycopg://savings:savings@postgres:5432/savings_bucket
+      BANKING_ADAPTER_MODE: mock
+      EVENT_BUS_MODE: local
+      SQS_MODE: local
+    ports:
+      - "8004:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  notification-service:
+    build:
+      context: .
+      args:
+        SERVICE_MODULE: services.notification_service.main
+    environment:
+      SERVICE_NAME: notification-service
+      APP_ENV: local
+      DATABASE_URL: postgresql+psycopg://savings:savings@postgres:5432/savings_bucket
+      BANKING_ADAPTER_MODE: mock
+      EVENT_BUS_MODE: local
+      SQS_MODE: local
+    ports:
+      - "8005:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres-data:

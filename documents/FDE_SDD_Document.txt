@@ -1,0 +1,303 @@
+SYSTEM DESIGN DOCUMENT
+Document Type	System Design Document (SDD)
+Project	Savings Bucket
+Domain	Digital Banking / Personal Finance
+Version	1.0
+Status	Draft - System Design 
+Date	September 2026
+Source	Savings Bucket Product Requirements Document
+
+1. Document Overview
+The MVP covers bucket creation, goal definition, contributions, withdrawals, balance/progress visibility, transaction history, and recurring contributions.
+Final architecture decisions: AWS, Python/FastAPI, PostgreSQL, domain-oriented microservices, logical bucket allocation, event-driven recurring contributions, OAuth 2.0/OIDC with JWT, API Gateway + ECS/Fargate, and future AI isolated from financial transaction execution.
+2. Architecture Goals
+•	Goal-oriented savings without a separate bank account per bucket.
+•	Keep actual funds authoritative in the banking account/transaction capability.
+•	Safe, auditable contributions and withdrawals with idempotency and explicit states.
+•	Independent service scaling without Kubernetes as a runtime dependency.
+•	Asynchronous, resilient recurring contributions.
+•	Future AI decoupled from money movement.
+3. Architecture Principles
+•	Domain-oriented service boundaries, not a service per CRUD operation.
+•	API Gateway is the north-south API boundary.
+•	ECS Fargate is the runtime.
+•	RDS PostgreSQL provides ACID transactional state.
+•	Use events for asynchronous workflows and controlled commands for money movement.
+•	Transactional outbox plus durable messaging.
+•	Idempotent consumers and safe retries.
+•	AI is advisory only.
+4. Functional Scope
+4.1 MVP
+•	Create bucket
+•	Set name, target amount and target date
+•	Add money
+•	Withdraw money
+•	View balance
+•	View goal progress
+•	View transaction history
+•	Configure recurring contribution
+4.2 Future Scope
+•	Personalized savings recommendations
+•	Intelligent goal adjustment
+•	Smart bucket recommendations
+4.3 Out of Scope
+•	Replacing the bank core ledger
+•	Separate bank account per bucket
+•	AI-controlled money movement
+•	Investment advice
+•	Kubernetes/EKS as a mandatory runtime
+5. Non-Functional Requirements – Initial Design Targets
+Area	Target	Response
+Availability	99.9%	Multi-AZ ECS/RDS
+Read performance	p95 ≤ 500 ms	Indexes, pagination, stateless services
+Transaction orchestration	p95 ≤ 2 s excluding banking dependency	Explicit PENDING state
+Reliability	No duplicate financial processing	Idempotency + unique constraints
+Recovery	RPO ≤ 15 min; RTO ≤ 1 hour	Backups + DR design
+Security	TLS, encryption, least privilege	JWT, IAM, KMS, Secrets Manager
+Auditability	Traceable financial state changes	Transaction/audit records + correlation IDs
+Targets are capstone design targets and require validation through testing.
+6. High-Level Architecture
+Customer → Mobile/Web → Amazon API Gateway → OAuth 2.0/OIDC JWT authorization → ECS/Fargate FastAPI microservices → RDS PostgreSQL / EventBridge / SQS → Banking Account & Transaction Service. Operational layer uses CloudWatch, distributed tracing and audit records.
+6.1 AWS Components
+Layer	Technology	Purpose
+API	Amazon API Gateway	Routing, throttling, JWT authorization
+Identity	OAuth 2.0 / OIDC; Cognito as capstone IdP option	Authentication/token validation
+Compute	Amazon ECS Fargate	FastAPI microservices
+Database	Amazon RDS PostgreSQL	Transactional state
+Events	Amazon EventBridge	Domain-event routing
+Queues	Amazon SQS	Durable async processing/retries
+Secrets	AWS Secrets Manager	Sensitive configuration
+Encryption	AWS KMS	Key management
+Observability	CloudWatch + tracing	Logs, metrics, alarms, traces
+Network	VPC/private subnets/security groups	Isolation and connectivity
+
+6.2 Architecture Diagram
+Internet/Mobile/Web → API Gateway + JWT → ECS/Fargate: Bucket | Contribution | Withdrawal | Recurring Services → RDS PostgreSQL and EventBridge/SQS → Banking Transaction Service (authoritative money movement).
+ 
+7. Application Architecture
+ 
+ 
+7.1 Service Boundaries
+Service	Owns	Responsibilities
+Bucket Service	Bucket metadata/logical allocation	Create/read buckets, target validation, balance/progress
+Contribution Service	Contribution workflow	Idempotency, banking request, contribution state
+Withdrawal Service	Withdrawal workflow	Balance validation, banking request, withdrawal state
+Recurring Contribution Service	Recurring config/execution	Scheduling, due commands, retries
+Transaction History	Customer-visible history	History read capability; may remain in Bucket Service for MVP
+Notification Service	Notification delivery	Consume approved events if enabled
+Banking Transaction Service	Actual money movement	Authoritative account debit/credit and result
+The boundaries are domain-oriented and intentionally avoid a microservice for every CRUD operation.
+8. Data Architecture
+8.1 Logical Data Model
+Entity	Key Fields	Owner
+Savings Bucket	bucket_id, customer_id, name, target_amount, current_balance, target_date, status, version, timestamps	Bucket Service
+Bucket Transaction	transaction_id, bucket_id, customer_id, type, amount, status, external_reference, idempotency_key, timestamps	Contribution/Withdrawal domain
+Recurring Contribution	recurring_contribution_id, bucket_id, customer_id, amount, frequency, start_date, next_execution_date, status, version	Recurring Service
+Outbox Event	event_id, aggregate_id, event_type, payload, status, timestamps	Owning service
+
+ 
+8.2 Accounting Model – Decision
+A bucket is a logical allocation, not a separate underlying bank account. Actual customer funds remain authoritative in the banking account/transaction capability. The bucket database records allocation across goals. Contribution updates allocation only after confirmed financial success; withdrawal follows the inverse pattern.
+8.3 Consistency and Concurrency
+•	PostgreSQL transactions for local state changes.
+•	Optimistic locking via version or row-level locking for balance updates.
+•	Unique customer/idempotency constraints.
+•	PENDING, SUCCESS, FAILED and REVERSED states where applicable.
+•	Transactional outbox for atomic local state plus event intent.
+•	Idempotent event consumers.
+•	Reconciliation for financial success without bucket-state completion.
+9. API Design
+Method	Endpoint	Purpose
+POST	/v1/buckets	Create bucket
+GET	/v1/buckets	List customer buckets
+GET	/v1/buckets/{bucketId}	Get balance/progress
+POST	/v1/buckets/{bucketId}/contributions	Add money
+POST	/v1/buckets/{bucketId}/withdrawals	Withdraw money
+GET	/v1/buckets/{bucketId}/transactions	History
+POST	/v1/buckets/{bucketId}/recurring-contributions	Create/configure recurring contribution
+PATCH	/v1/buckets/{bucketId}/recurring-contributions/{id}	Update recurring configuration
+9.1 Example – Create Bucket
+POST /v1/buckets
+{ "name": "Europe Vacation", "targetAmount": 150000, "targetDate": "2027-06-30" }
+9.2 Example – Contribution
+POST /v1/buckets/{bucketId}/contributions
+Idempotency-Key: <unique-request-key>
+{ "amount": 10000 }
+10. Sequence Flows
+10.1 Create Bucket
+1.	Authenticate customer.
+2.	Client calls POST /v1/buckets.
+3.	API Gateway validates JWT.
+4.	Bucket Service validates and commits bucket to PostgreSQL.
+5.	API returns bucket ID, target, balance and progress.
+10.2 Add Money
+6.	Client sends contribution with Idempotency-Key.
+7.	JWT is validated.
+8.	Contribution Service validates ownership and amount.
+9.	Idempotency is checked.
+10.	Banking Transaction Service processes movement.
+11.	Result is SUCCESS, FAILED or PENDING.
+12.	Confirmed success commits bucket allocation and transaction state.
+13.	ContributionCompleted event is published through outbox.
+14.	Client receives status and transaction reference.
+10.3 Withdrawal
+15.	Validate identity and ownership.
+16.	Check allocated bucket balance.
+17.	Create idempotent withdrawal command.
+18.	Request financial movement.
+19.	Reduce allocation only after confirmed success.
+20.	Record transaction and publish completion event.
+10.4 Recurring Contribution
+21.	Store recurring configuration and next execution date.
+22.	EventBridge Scheduler triggers due execution.
+23.	Recurring Service places durable work on SQS.
+24.	Contribution Service processes using manual-contribution controls.
+25.	Outcome updates execution state and optionally notifies customer.
+26.	Next execution is scheduled according to policy.
+11. Failure Handling
+Failure	Handling
+Duplicate request	Return original result; never process a second financial transaction.
+Insufficient funds	Reject contribution; allocation unchanged.
+Withdrawal exceeds balance	Reject; allocation unchanged.
+Banking dependency unavailable	Controlled PENDING/503; never falsely update balance.
+Duplicate event	Ignore already-processed event ID.
+DB failure before commit	Rollback local transaction.
+DB failure after external success	Reconciliation repairs eventual consistency.
+Recurring failure	SQS retry, DLQ and alerting.
+Unauthorized access	403 without sensitive details.
+
+12. Security Architecture
+•	OAuth 2.0/OIDC + JWT authentication.
+•	API Gateway validates JWT signature, issuer, audience and expiry.
+•	Every service authorizes resource ownership.
+•	ECS task roles use least privilege.
+•	ECS/RDS use private subnets and restrictive security groups.
+•	TLS and KMS-backed encryption at rest.
+•	Secrets Manager for credentials.
+•	No credentials/tokens/unnecessary sensitive data in logs.
+•	Audit financial actions and security failures.
+13. Observability
+Signal	Examples
+Logs	correlation_id, trace_id, service, operation, bucket_id, transaction_id, outcome
+Metrics	Success/failure, latency, dependency errors, idempotency conflicts, queue backlog
+Tracing	Gateway → service → banking dependency → event consumer
+Alerts	5xx spikes, dependency failures, DLQ, queue backlog, reconciliation mismatch
+
+14. Deployment & Environment Design
+Environment	Design
+DEV	Controlled test data and development integrations
+UAT	Production-like configuration and controlled test accounts
+PROD	Multi-AZ runtime, monitoring, backups and change controls
+DR	DR-specific infrastructure, network, data recovery and operational controls
+The same containerized services and infrastructure definitions are promoted across environments; configuration is externalized.
+15. CI/CD Architecture
+27.	Commit source/infrastructure change.
+28.	Run unit, lint, security and build checks.
+29.	Run Terraform validation and plan checks.
+30.	Build/version immutable container artifacts.
+31.	Promote the same artifact DEV → UAT → PROD.
+32.	Apply environment approvals/change controls.
+33.	Run post-deployment smoke tests.
+Azure DevOps or GitHub Actions can implement this flow without changing the runtime architecture.
+16. Disaster Recovery & Resilience
+•	RDS Multi-AZ in production.
+•	Automated backups; cross-region backup/replication can support DR.
+•	Stateless ECS services can be recreated in a recovery environment.
+•	Infrastructure as code enables repeatable recovery.
+•	Queues, explicit states and reconciliation protect workflow consistency.
+•	DR tests validate financial-state consistency as well as availability.
+17. Future AI Architecture
+Approved Financial Signals (income / spending / savings / goals / target dates) → AI/Recommendation Layer → Savings Bucket Experience.
+•	AI is read-oriented and advisory.
+•	AI cannot directly execute financial transactions.
+•	Recommendations are guidance, not guaranteed outcomes.
+•	Only authorized customer data may be used.
+•	AI failure cannot block MVP money movement.
+•	Model governance, evaluation, privacy and explainability are required before production.
+18. Architecture Decision Records
+ADR	Decision	Rationale
+ADR-001	Domain-oriented microservices	Clear domain boundaries without CRUD-per-service anti-pattern.
+ADR-002	ECS Fargate instead of Kubernetes	Lower operational overhead with container scaling.
+ADR-003	RDS PostgreSQL	ACID transactions, constraints and mature relational capabilities.
+ADR-004	Logical bucket allocation	Goal-level tracking without a separate bank account per goal.
+ADR-005	Event-driven recurring contributions	Decouples scheduling/execution and supports durable retry.
+ADR-006	OAuth 2.0/OIDC + JWT	Standard identity and authorization context.
+ADR-007	API Gateway	Central boundary for routing, authorization and throttling.
+ADR-008	Transactional outbox + EventBridge/SQS	Reliable transition from local state to asynchronous events.
+ADR-009	AI outside money movement	AI cannot become a financial transaction dependency.
+
+19. PRD → SDD Traceability
+PRD Requirement	SDD Coverage
+FR-001 Create bucket	Bucket Service + POST /v1/buckets
+FR-002 Name bucket	Bucket entity + validation
+FR-003 Target amount	Bucket entity + validation
+FR-004 Target date	Bucket entity + validation
+FR-005 Add money	Contribution Service + Banking Transaction Service + idempotency
+FR-006 Withdraw money	Withdrawal Service + balance validation + Banking Transaction Service
+FR-007 View balance	Bucket Service read API
+FR-008 View goal progress	Bucket Service progress calculation
+FR-009 View transaction history	Bucket records + history API
+FR-010 Recurring contribution	Recurring Service + Scheduler + SQS + Contribution Service
+
+20. Testing Strategy
+•	Unit: validation, progress calculation and state transitions.
+•	API/contract: schemas, JWT claims and error model.
+•	Integration: PostgreSQL, messaging and banking adapter.
+•	End-to-end: create → contribute → progress → withdraw → history → recurring.
+•	Reliability: retries, duplicates, timeouts and recovery.
+•	Concurrency: simultaneous updates to the same bucket.
+•	Security: object-level authorization, token validation and secret exposure.
+•	Performance: latency, concurrency, queue throughput and database behavior.
+21. API Error Model
+HTTP	Meaning	Example
+400	Invalid request	Malformed input
+401	Unauthenticated	Missing/invalid JWT
+403	Forbidden	Customer does not own bucket
+404	Not found	Bucket not found/visible
+409	Conflict	Duplicate idempotency/incompatible state
+422	Business validation	Insufficient balance/domain rule
+429	Too many requests	Rate limit exceeded
+500	Internal error	Unexpected service failure
+503	Dependency unavailable	Banking/dependency outage
+
+22. Risks & Mitigations
+Risk	Mitigation
+Distributed transaction inconsistency	Explicit states, idempotency, outbox and reconciliation
+Duplicate event processing	Event IDs, unique constraints and idempotent consumers
+Incorrect bucket balance	Single bucket owner, ACID local updates and outcome gating
+Service proliferation	Domain boundaries; combine simple reads where justified
+AI privacy/model risk	Read-only architecture, governance and controlled rollout
+Operational complexity	Managed AWS services and ECS Fargate instead of Kubernetes
+
+23. Implementation Roadmap
+34.	Foundation: Terraform, VPC, RDS, ECS baseline, API Gateway and identity.
+35.	Bucket MVP: schema, create/list/detail APIs and progress.
+36.	Money movement: contribution/withdrawal services, banking adapter, idempotency and reconciliation.
+37.	History: transaction records and pagination.
+38.	Recurring: scheduler, SQS, retry/DLQ and execution state.
+39.	Operations: monitoring, tracing, security and DR automation.
+40.	Validation: functional, security, concurrency, failure and performance testing.
+41.	Future AI: data governance → recommendation service → evaluation → controlled rollout.
+24. Final Architecture Summary
+The final architecture uses AWS-managed infrastructure with FastAPI microservices on ECS Fargate, PostgreSQL on RDS, API Gateway, OAuth 2.0/OIDC with JWT, and EventBridge/SQS for asynchronous recurring-contribution processing.
+Savings Buckets are logical allocations against an authoritative customer account. Financial movement is separated from bucket-domain state, with idempotency, explicit transaction states, transactional outbox and reconciliation providing distributed consistency.
+Future AI remains advisory and isolated from core money movement. This provides a concrete, explainable and implementation-ready architecture for the FDE capstone.
+Appendix A – MVP End-to-End Flow
+42.	Customer authenticates.
+43.	Customer opens Savings Bucket.
+44.	System retrieves customer-owned buckets.
+45.	Customer creates goal.
+46.	Customer contributes money.
+47.	Confirmed financial success updates logical allocation.
+48.	Balance and progress are updated.
+49.	Customer may withdraw.
+50.	Customer views transaction history.
+51.	Customer configures recurring contributions.
+52.	Recurring execution runs asynchronously with retry and reconciliation controls.
+Appendix B – Design Assumptions
+•	Bucket accounting is a logical allocation model.
+•	Banking account/transaction capability is authoritative for actual money movement.
+•	Banking integration is represented by an adapter/interface in the capstone.
+•	NFR values are initial design targets and require validation.
+•	Notifications are optional and do not affect core MVP.
+•	Future AI platform selection is deferred to AI implementation design.
