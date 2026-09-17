@@ -13,7 +13,8 @@ The R0 foundation scaffold is now implemented:
 - Pydantic Settings configuration loaded from `.env`.
 - Local customer identity and idempotency-key dependencies.
 - Common error response shape and domain service entrypoints.
-- PostgreSQL 16 Docker Compose service.
+- Local PostgreSQL development workflow using the `dnyanesh_kudale` user.
+- Optional PostgreSQL 16 Docker Compose service for isolated container development.
 - Foundation SQL migration for buckets, transactions, and outbox events.
 - Docker image definition and Pytest/Ruff development configuration.
 
@@ -84,17 +85,18 @@ savings-bucket/
 
 AWS CLI and Terraform are needed later for cloud infrastructure work, but are not required for the current local foundation.
 
-Local development should use a mocked banking adapter and local dependencies. Do not connect local experiments to production accounts or production financial data.
+Local development uses the installed PostgreSQL server with database user `dnyanesh_kudale`. The password is read from the `FDE_DB_PASS` environment variable and is never committed to the repository. Do not connect local experiments to production accounts or production financial data.
 
 ## Start locally
 
-From the repository root, run the Git Bash bootstrap script:
+From the repository root, set the PostgreSQL password for the current Git Bash session and run the bootstrap script:
 
 ```bash
+export FDE_DB_PASS='your-local-postgres-password'
 bash ./scripts/run-local.sh
 ```
 
-The script creates `.venv` if needed, installs the project with development dependencies, and starts PostgreSQL. Start `bucket-service` with:
+The script creates `.venv` if needed, installs the project with development dependencies, verifies `psql`, creates the local database if needed, and applies the foundation migration. Start `bucket-service` with:
 
 ```bash
 ./.venv/Scripts/python.exe -m uvicorn services.bucket_service.main:app --reload --port 8001
@@ -109,7 +111,7 @@ Start the other services manually when needed:
 ./.venv/Scripts/python.exe -m uvicorn services.notification_service.main:app --reload --port 8005
 ```
 
-Alternatively, build and run all five service containers:
+The normal local workflow uses your installed PostgreSQL. Alternatively, build and run all five service containers with the Compose PostgreSQL instance:
 
 ```bash
 docker compose up --build
@@ -132,7 +134,9 @@ Each FastAPI service exposes `GET /health/live` and `GET /health/ready`. The not
 
 ## Database
 
-Compose starts PostgreSQL with database `savings_bucket`, username `savings`, password `savings`, and host port `5432`. Apply the foundation migration after PostgreSQL is ready:
+The local Git Bash workflow connects to PostgreSQL at `localhost:5432` with database `savings_bucket` and username `dnyanesh_kudale`. The script uses `FDE_DB_PASS` through `PGPASSWORD` for database creation and migration, then application settings use the same password to build `DATABASE_URL`.
+
+For the optional Compose workflow, PostgreSQL uses database `savings_bucket`, username `savings`, password `savings`, and host port `5432`. Apply the foundation migration after the container is ready:
 
 ```bash
 docker compose exec -T postgres psql -U savings -d savings_bucket < db/migrations/001_foundation.sql
@@ -142,12 +146,12 @@ The migration creates `buckets`, `bucket_transactions`, and `outbox_events`. The
 
 ## Local configuration
 
-Create a local `.env` from `.env.example`. Keep secrets out of source control.
+Create a local `.env` from `.env.example` if you need overrides. Keep secrets out of source control. The preferred Git Bash setup is to export `FDE_DB_PASS` in the terminal session.
 
 ```dotenv
 APP_ENV=local
 LOG_LEVEL=INFO
-DATABASE_URL=postgresql+psycopg://savings:savings@localhost:5432/savings_bucket
+FDE_DB_PASS=
 JWT_ISSUER=http://localhost:8080/realms/savings-bucket
 JWT_AUDIENCE=savings-bucket-local
 BANKING_ADAPTER_MODE=mock
