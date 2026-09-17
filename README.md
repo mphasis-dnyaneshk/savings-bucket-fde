@@ -79,7 +79,7 @@ savings-bucket/
 
 - Python 3.12.8.
 - Docker Desktop with Docker Compose.
-- PowerShell for the provided bootstrap script.
+- Git Bash in the VS Code terminal.
 - Git.
 
 AWS CLI and Terraform are needed later for cloud infrastructure work, but are not required for the current local foundation.
@@ -88,30 +88,30 @@ Local development should use a mocked banking adapter and local dependencies. Do
 
 ## Start locally
 
-From the repository root, run the bootstrap script:
+From the repository root, run the Git Bash bootstrap script:
 
-```powershell
-.\scripts\run-local.ps1
+```bash
+bash ./scripts/run-local.sh
 ```
 
 The script creates `.venv` if needed, installs the project with development dependencies, and starts PostgreSQL. Start `bucket-service` with:
 
-```powershell
-.\.venv\Scripts\python.exe -m uvicorn services.bucket_service.main:app --reload --port 8001
+```bash
+./.venv/Scripts/python.exe -m uvicorn services.bucket_service.main:app --reload --port 8001
 ```
 
 Start the other services manually when needed:
 
-```powershell
-.\.venv\Scripts\python.exe -m uvicorn services.contribution_service.main:app --reload --port 8002
-.\.venv\Scripts\python.exe -m uvicorn services.withdrawal_service.main:app --reload --port 8003
-.\.venv\Scripts\python.exe -m uvicorn services.recurring_contribution_service.main:app --reload --port 8004
-.\.venv\Scripts\python.exe -m uvicorn services.notification_service.main:app --reload --port 8005
+```bash
+./.venv/Scripts/python.exe -m uvicorn services.contribution_service.main:app --reload --port 8002
+./.venv/Scripts/python.exe -m uvicorn services.withdrawal_service.main:app --reload --port 8003
+./.venv/Scripts/python.exe -m uvicorn services.recurring_contribution_service.main:app --reload --port 8004
+./.venv/Scripts/python.exe -m uvicorn services.notification_service.main:app --reload --port 8005
 ```
 
 Alternatively, build and run all five service containers:
 
-```powershell
+```bash
 docker compose up --build
 ```
 
@@ -134,8 +134,8 @@ Each FastAPI service exposes `GET /health/live` and `GET /health/ready`. The not
 
 Compose starts PostgreSQL with database `savings_bucket`, username `savings`, password `savings`, and host port `5432`. Apply the foundation migration after PostgreSQL is ready:
 
-```powershell
-Get-Content .\db\migrations\001_foundation.sql | docker compose exec -T postgres psql -U savings -d savings_bucket
+```bash
+docker compose exec -T postgres psql -U savings -d savings_bucket < db/migrations/001_foundation.sql
 ```
 
 The migration creates `buckets`, `bucket_transactions`, and `outbox_events`. The services currently expose database configuration but do not yet perform database reads or writes.
@@ -191,17 +191,17 @@ The initial tables are `buckets`, `bucket_transactions`, `recurring_contribution
 
 Check the running foundation:
 
-```powershell
-Invoke-RestMethod http://localhost:8001/health/live
-Invoke-RestMethod http://localhost:8001/health/ready
-Invoke-RestMethod http://localhost:8005/internal/status
+```bash
+curl http://localhost:8001/health/live
+curl http://localhost:8001/health/ready
+curl http://localhost:8005/internal/status
 ```
 
 Run the automated checks from the repository root:
 
-```powershell
-.\.venv\Scripts\python.exe -m pytest
-.\.venv\Scripts\python.exe -m ruff check .
+```bash
+./.venv/Scripts/python.exe -m pytest
+./.venv/Scripts/python.exe -m ruff check .
 ```
 
 The current tests cover the shared health contract. The minimum future end-to-end scenario is:
