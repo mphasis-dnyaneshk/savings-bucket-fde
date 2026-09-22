@@ -35,7 +35,9 @@ class MockNotificationStore:
         record = self._records.get(notification_id)
         return record if record and record.customer_id == customer_id else None
 
-    def dismiss(self, customer_id: str, notification_id: UUID) -> NotificationRecord | None:
+    def dismiss(
+        self, customer_id: str, notification_id: UUID
+    ) -> NotificationRecord | None:
         record = self.get(customer_id, notification_id)
         if record is not None:
             del self._records[notification_id]

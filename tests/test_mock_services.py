@@ -131,9 +131,10 @@ def test_notification_delivery_and_customer_lookup() -> None:
         headers={"X-Customer-ID": "customer-1"},
     )
     assert dismissed.status_code == 200
-    assert client.get(
-        "/v1/notifications", headers={"X-Customer-ID": "customer-1"}
-    ).json() == []
+    assert (
+        client.get("/v1/notifications", headers={"X-Customer-ID": "customer-1"}).json()
+        == []
+    )
 
     unauthorized = client.get(
         f"/v1/notifications/{notification_id}",
