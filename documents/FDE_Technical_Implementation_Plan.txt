@@ -16,7 +16,7 @@ SDD	AWS architecture, services, APIs, data model, NFRs, security and ADRs.
 UX & User Journey	Customer flows, validation, status language and financial-action safety.
 Product Backlog & User Stories	31 implementable stories, priorities, acceptance criteria and releases.
 3. Target Architecture
-Customer → Mobile/Web → API Gateway → OIDC/JWT → ECS/FastAPI services → PostgreSQL. Recurring contributions use EventBridge and SQS/DLQ. Notifications consume domain events. Banking/Core Banking is authoritative for actual account debits/credits.
+Customer → React + TypeScript + Vite web application → API Gateway → OIDC/JWT → ECS/FastAPI services → PostgreSQL. Recurring contributions use EventBridge and SQS/DLQ. Notifications consume domain events. Banking/Core Banking is authoritative for actual account debits/credits.
 •	API Gateway: API boundary, routing, throttling and authorization integration.
 •	ECS Fargate: FastAPI runtime; EKS is intentionally not used in the current design.
 •	RDS PostgreSQL: durable relational store.
@@ -37,6 +37,11 @@ Customer → Mobile/Web → API Gateway → OIDC/JWT → ECS/FastAPI services �
 •	Use reconciliation for uncertain external outcomes.
 5. Recommended Repository Structure
 savings-bucket/
+├── frontend/
+│   ├── src/
+│   ├── public/
+│   ├── package.json
+│   └── vite.config.ts
 ├── services/
 │   ├── bucket-service/
 │   ├── contribution-service/
@@ -259,7 +264,8 @@ Incorrect AI recommendation	Advisory-only AI with no transaction authority.
 •	Show observability.
 •	Present future AI as advisory only.
 26. Immediate Next Engineering Tasks
-•	Create repository/service skeleton.
+•	Create repository/service and React frontend skeleton.
+•	Initialize the frontend with TypeScript, Vite, responsive routing, API client configuration and environment-based backend URL.
 •	Create OpenAPI specification.
 •	Create PostgreSQL ERD and migrations.
 •	Define request/response/error schemas.
@@ -275,6 +281,7 @@ Incorrect AI recommendation	Advisory-only AI with no transaction authority.
 •	Provision AWS DEV foundation and deploy the first service.
 27. Open Technical Decisions
 Decision	Current position	Validation
+Frontend stack	React + TypeScript + Vite for the responsive web application.	Validate build, API integration, accessibility and mobile/desktop flows.
 Banking integration	Abstract/mock interface; banking remains authoritative.	Final integration contract.
 DB isolation	Logical ownership in PostgreSQL initially.	Assess physical/schema isolation.
 Event scheduling	EventBridge preferred.	Confirm scheduler/event model.

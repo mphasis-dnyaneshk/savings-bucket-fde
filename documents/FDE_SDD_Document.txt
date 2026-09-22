@@ -57,7 +57,7 @@ Security	TLS, encryption, least privilege	JWT, IAM, KMS, Secrets Manager
 Auditability	Traceable financial state changes	Transaction/audit records + correlation IDs
 Targets are capstone design targets and require validation through testing.
 6. High-Level Architecture
-Customer → Mobile/Web → Amazon API Gateway → OAuth 2.0/OIDC JWT authorization → ECS/Fargate FastAPI microservices → RDS PostgreSQL / EventBridge / SQS → Banking Account & Transaction Service. Operational layer uses CloudWatch, distributed tracing and audit records.
+Customer → React + TypeScript + Vite web application → Amazon API Gateway → OAuth 2.0/OIDC JWT authorization → ECS/Fargate FastAPI microservices → RDS PostgreSQL / EventBridge / SQS → Banking Account & Transaction Service. Operational layer uses CloudWatch, distributed tracing and audit records.
 6.1 AWS Components
 Layer	Technology	Purpose
 API	Amazon API Gateway	Routing, throttling, JWT authorization
@@ -72,7 +72,7 @@ Observability	CloudWatch + tracing	Logs, metrics, alarms, traces
 Network	VPC/private subnets/security groups	Isolation and connectivity
 
 6.2 Architecture Diagram
-Internet/Mobile/Web → API Gateway + JWT → ECS/Fargate: Bucket | Contribution | Withdrawal | Recurring Services → RDS PostgreSQL and EventBridge/SQS → Banking Transaction Service (authoritative money movement).
+Browser/React Web UI → API Gateway + JWT → ECS/Fargate: Bucket | Contribution | Withdrawal | Recurring Services → RDS PostgreSQL and EventBridge/SQS → Banking Transaction Service (authoritative money movement).
  
 7. Application Architecture
  
@@ -225,6 +225,7 @@ ADR-006	OAuth 2.0/OIDC + JWT	Standard identity and authorization context.
 ADR-007	API Gateway	Central boundary for routing, authorization and throttling.
 ADR-008	Transactional outbox + EventBridge/SQS	Reliable transition from local state to asynchronous events.
 ADR-009	AI outside money movement	AI cannot become a financial transaction dependency.
+ADR-010	React + TypeScript + Vite frontend	Provides a typed, fast, component-based web application for the responsive Savings Bucket experience and local capstone development.
 
 19. PRD → SDD Traceability
 PRD Requirement	SDD Coverage

@@ -1,0 +1,59 @@
+from dataclasses import dataclass
+from datetime import datetime, timezone
+from decimal import Decimal
+from uuid import UUID, uuid4
+
+
+@dataclass(frozen=True)
+class WithdrawalRecord:
+    withdrawal_id: UUID
+    bucket_id: UUID
+    customer_id: str
+    amount: Decimal
+    status: str
+    idempotency_key: str
+    external_reference: str
+    created_at: datetime
+
+
+class MockWithdrawalStore:
+    def __init__(self) -> None:
+        self._records: dict[tuple[str, str], WithdrawalRecord] = {}
+        self._by_id: dict[UUID, WithdrawalRecord] = {}
+
+    def create_or_get(
+        self,
+        customer_id: str,
+        bucket_id: UUID,
+        amount: Decimal,
+        idempotency_key: str,
+    ) -> WithdrawalRecord:
+        key = (customer_id, idempotency_key)
+        existing = self._records.get(key)
+        if existing:
+            if existing.bucket_id != bucket_id or existing.amount != amount:
+                raise ValueError(
+                    "Idempotency key was already used for another request."
+                )
+            return existing
+
+        record = WithdrawalRecord(
+            withdrawal_id=uuid4(),
+            bucket_id=bucket_id,
+            customer_id=customer_id,
+            amount=amount,
+            status="SUCCESS",
+            idempotency_key=idempotency_key,
+            external_reference=f"mock-withdrawal-{uuid4().hex[:12]}",
+            created_at=datetime.now(timezone.utc),
+        )
+        self._records[key] = record
+        self._by_id[record.withdrawal_id] = record
+        return record
+
+    def get(self, customer_id: str, withdrawal_id: UUID) -> WithdrawalRecord | None:
+        record = self._by_id.get(withdrawal_id)
+        return record if record and record.customer_id == customer_id else None
+
+
+mock_store = MockWithdrawalStore()

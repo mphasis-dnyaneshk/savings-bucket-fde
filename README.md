@@ -19,16 +19,17 @@ The R0 foundation and the bucket-service R1 slice are implemented:
 - Foundation SQL migration for buckets, transactions, and outbox events.
 - Docker image definition and Pytest/Ruff development configuration.
 
-The bucket service is now end-to-end for its current API surface: create, list, details, progress, and transaction-history reads. It supports a local `X-Customer-ID` identity header and filters every read by customer ownership. Contribution, withdrawal, recurring-contribution, real OIDC/JWT validation, EventBridge/SQS processing, Terraform, and the frontend are not implemented yet.
+The bucket, contribution, withdrawal, recurring-contribution, and notification services now expose working mock-first API flows. Contribution and withdrawal requests return deterministic mock `SUCCESS` records with idempotency protection. Recurring schedules support create, list, read, pause, and update. Notification delivery is represented by an in-memory `DELIVERED` result. The React + TypeScript + Vite frontend is now scaffolded and wired to these local APIs. Real OIDC/JWT validation, EventBridge/SQS processing, Terraform, and financial integration are not implemented yet.
 
 ## MVP scope
 
 - Create and list customer-owned savings buckets. **Implemented in bucket-service.**
 - View balance, target amount, target date, remaining amount, and progress. **Implemented in bucket-service.**
-- Contribute money to a bucket.
-- Withdraw money from a bucket allocation.
-- View contribution and withdrawal history.
-- Configure and execute recurring contributions.
+- Contribute money to a bucket. **Implemented as a mock contribution workflow.**
+- Withdraw money from a bucket allocation. **Implemented as a mock withdrawal workflow.**
+- View contribution and withdrawal status by ID. **Implemented in mock services.**
+- Configure, list, read, pause, and update recurring contributions. **Implemented as mock schedule management.**
+- Deliver and read notifications. **Implemented as an in-memory local notification flow.**
 - Protect every operation with authentication and bucket-level authorization.
 
 Future AI recommendations are advisory only and are not part of the MVP money-movement path.
@@ -38,10 +39,10 @@ Future AI recommendations are advisory only and are not part of the MVP money-mo
 | Service | Responsibility | Initial priority |
 | --- | --- | --- |
 | `bucket-service` | Create, list, and view buckets; calculate progress; own bucket allocation state | R1 |
-| `contribution-service` | Start contributions, call the banking adapter, enforce idempotency, and manage outcomes | R2 |
-| `withdrawal-service` | Validate available allocation, start withdrawals, and manage outcomes | R2 |
-| `recurring-contribution-service` | Store schedules, create due executions, and retry safely | R4 |
-| `notification-service` | Consume approved domain events and deliver notifications | R5 / optional |
+| `contribution-service` | Mock contribution records, idempotency, and status lookup | R2 mock slice |
+| `withdrawal-service` | Mock withdrawal records, idempotency, and status lookup | R2 mock slice |
+| `recurring-contribution-service` | Mock schedule create/list/read/update and status | R4 mock slice |
+| `notification-service` | Mock notification delivery and customer-scoped lookup | R5 mock slice |
 | `banking-transaction-service` | Authoritative debit/credit boundary; use a mocked adapter locally | R2 |
 
 The transaction-history capability may remain within `bucket-service` for the MVP. A future recommendation service must remain isolated from financial transaction execution.
@@ -56,6 +57,7 @@ savings-bucket/
 │   ├── withdrawal-service/
 │   ├── recurring-contribution-service/
 │   └── notification-service/
+├── frontend/       React + TypeScript + Vite web application
 ├── shared/
 │   ├── auth/
 │   ├── errors/
@@ -75,6 +77,41 @@ savings-bucket/
 ├── docker-compose.yml
 ├── .env.example
 └── README.md
+```
+
+## Frontend technology decision
+
+The capstone frontend will use **React + TypeScript + Vite**. It will provide the responsive Savings Bucket web experience described in the UX document: dashboard, bucket detail, create bucket, add money, withdraw, transactions, and recurring contribution screens.
+
+The frontend will call the FastAPI services through the documented API boundary and use local mock data or mock service responses during development. It must remain responsive, keyboard accessible, screen-reader friendly, and must not imply that a bucket is a separate bank account.
+
+## Start the frontend
+
+Start the backend services first on ports `8001` through `8005`, then run the frontend from the repository root:
+
+```bash
+cd frontend
+npm install
+cp .env.example .env
+npm run dev
+```
+
+Open `http://localhost:5173`. The UI uses `customer-001` by default and sends it as the local `X-Customer-ID` header. Change `VITE_CUSTOMER_ID` in `frontend/.env` to simulate another local customer.
+
+The frontend currently supports:
+
+- Dashboard summary and goal cards.
+- Create bucket flow.
+- Bucket detail with progress and remaining amount.
+- Mock contribution and withdrawal actions.
+- Recurring contribution create, list, pause, and resume.
+- Activity view and notification feedback.
+- Responsive mobile, tablet, and desktop layouts.
+
+Build the production bundle with:
+
+```bash
+npm run build
 ```
 
 ## Prerequisites
@@ -191,10 +228,10 @@ The following bucket-service APIs are implemented. Use `X-Customer-ID` as the te
 | `GET` | `/v1/buckets` | List the customer's buckets |
 | `GET` | `/v1/buckets/{bucket_id}` | Get bucket details and progress |
 | `GET` | `/v1/buckets/{bucket_id}/transactions` | List bucket transactions |
-| `POST` | `/v1/buckets/{bucket_id}/contributions` | Planned contribution endpoint |
-| `POST` | `/v1/buckets/{bucket_id}/withdrawals` | Planned withdrawal endpoint |
-| `POST` | `/v1/buckets/{bucket_id}/recurring-contributions` | Planned recurring endpoint |
-| `PATCH` | `/v1/buckets/{bucket_id}/recurring-contributions/{id}` | Planned recurring endpoint |
+| `POST` | `/v1/buckets/{bucket_id}/contributions` | Mock contribution |
+| `POST` | `/v1/buckets/{bucket_id}/withdrawals` | Mock withdrawal |
+| `POST` | `/v1/buckets/{bucket_id}/recurring-contributions` | Mock recurring schedule |
+| `PATCH` | `/v1/buckets/{bucket_id}/recurring-contributions/{id}` | Update mock schedule |
 
 ### Bucket API example
 
@@ -218,6 +255,64 @@ curl -H 'X-Customer-ID: customer-001' http://localhost:8001/v1/buckets/<bucket_i
 The response includes `current_balance`, `remaining_amount`, and `progress_percentage`. A different customer ID cannot access the bucket and receives `404 Bucket not found.`
 
 Invalid or missing `X-Customer-ID` returns `401`. Invalid names, amounts, and dates are rejected by the request schema with `422`.
+
+## Mock service APIs
+
+All mock service data is held in memory and resets when that service restarts. These endpoints do not connect to production banking data.
+
+### Contribution service (`localhost:8002`)
+
+```bash
+curl -X POST http://localhost:8002/v1/buckets/<bucket_id>/contributions \
+	-H 'Content-Type: application/json' \
+	-H 'X-Customer-ID: customer-001' \
+	-H 'Idempotency-Key: contribution-001' \
+	-d '{"amount":"100.00"}'
+curl -H 'X-Customer-ID: customer-001' http://localhost:8002/v1/contributions/<contribution_id>
+```
+
+Repeating the same request with the same customer, bucket, amount, and idempotency key returns the original record. Reusing the key with different data returns `409`.
+
+### Withdrawal service (`localhost:8003`)
+
+```bash
+curl -X POST http://localhost:8003/v1/buckets/<bucket_id>/withdrawals \
+	-H 'Content-Type: application/json' \
+	-H 'X-Customer-ID: customer-001' \
+	-H 'Idempotency-Key: withdrawal-001' \
+	-d '{"amount":"25.00"}'
+curl -H 'X-Customer-ID: customer-001' http://localhost:8003/v1/withdrawals/<withdrawal_id>
+```
+
+The mock returns `SUCCESS`; real balance validation and banking integration are future work.
+
+### Recurring contribution service (`localhost:8004`)
+
+```bash
+curl -X POST http://localhost:8004/v1/buckets/<bucket_id>/recurring-contributions \
+	-H 'Content-Type: application/json' \
+	-H 'X-Customer-ID: customer-001' \
+	-d '{"amount":"100.00","frequency":"MONTHLY","start_date":"2026-10-01"}'
+curl -H 'X-Customer-ID: customer-001' http://localhost:8004/v1/buckets/<bucket_id>/recurring-contributions
+curl -X PATCH http://localhost:8004/v1/buckets/<bucket_id>/recurring-contributions/<schedule_id> \
+	-H 'Content-Type: application/json' \
+	-H 'X-Customer-ID: customer-001' \
+	-d '{"status":"PAUSED"}'
+curl -H 'X-Customer-ID: customer-001' http://localhost:8004/v1/recurring-contributions/<schedule_id>
+```
+
+Supported schedule states are `ACTIVE`, `PAUSED`, and `CANCELLED`. Scheduling and execution are currently mock-only.
+
+### Notification service (`localhost:8005`)
+
+```bash
+curl -X POST http://localhost:8005/internal/notifications \
+	-H 'Content-Type: application/json' \
+	-d '{"customer_id":"customer-001","event_type":"ContributionCompleted","message":"Your contribution was completed."}'
+curl -H 'X-Customer-ID: customer-001' http://localhost:8005/v1/notifications/<notification_id>
+```
+
+The local notification provider returns `DELIVERED` without sending an external message.
 
 ## Data and consistency rules
 
@@ -249,7 +344,7 @@ Run the automated checks from the repository root:
 ./.venv/Scripts/python.exe -m ruff check .
 ```
 
-The current tests cover the shared health contract. The minimum future end-to-end scenario is:
+The tests cover the shared health contract, bucket lifecycle, customer isolation, contribution idempotency, withdrawal status, recurring schedule lifecycle, and notification lookup. The minimum future end-to-end scenario is:
 
 ```text
 authenticate -> create bucket -> contribute -> verify progress -> withdraw

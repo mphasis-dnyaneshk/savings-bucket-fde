@@ -275,6 +275,7 @@ Suggested Measures
 •	Ease of recurring contribution setup
 16. Open UX Decisions
 Decision	Current Position	When to Finalize
+Frontend technology	React + TypeScript + Vite	Use for the responsive web application and local capstone UI
 Exact visual design / brand system	Not defined in PRD/SDD	Before frontend implementation
 Target date required vs optional	Exact rule not specified	Before UI/API finalization
 Withdrawal confirmation pattern	Confirmation recommended	Prototype review

@@ -1,6 +1,7 @@
 from collections.abc import Callable
 
 from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from shared.config import Settings, get_settings
@@ -12,6 +13,16 @@ def create_app(
     settings = get_settings()
     app = FastAPI(title=f"Savings Bucket {service_name}", version="0.1.0")
     app.state.settings = settings
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=[
+            "http://localhost:5173",
+            "http://127.0.0.1:5173",
+        ],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
     @app.middleware("http")
     async def correlation_id(request: Request, call_next):
