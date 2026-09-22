@@ -374,3 +374,4 @@ Also test invalid amounts, unauthorized bucket access, duplicate idempotency key
 - [`FDE_Product_Backlog_User_Stories.txt`](documents/FDE_Product_Backlog_User_Stories.txt)
 - [`FDE_UX_User_Journey_Document.txt`](documents/FDE_UX_User_Journey_Document.txt)
 - [`AWS_Capstone_Resource_Requirements.txt`](documents/AWS_Capstone_Resource_Requirements.txt)
+- [`infra/terraform/README.md`](infra/terraform/README.md)

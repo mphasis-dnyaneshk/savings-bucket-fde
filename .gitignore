@@ -13,3 +13,6 @@ frontend/.env
 terraform/.terraform/
 terraform/*.tfstate*
 terraform/*.tfplan
+infra/terraform/**/*.tfstate*
+infra/terraform/**/*.tfplan
+infra/terraform/**/.terraform/
