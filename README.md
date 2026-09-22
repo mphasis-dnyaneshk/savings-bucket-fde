@@ -373,3 +373,4 @@ Also test invalid amounts, unauthorized bucket access, duplicate idempotency key
 - [`FDE_Technical_Implementation_Plan.txt`](documents/FDE_Technical_Implementation_Plan.txt)
 - [`FDE_Product_Backlog_User_Stories.txt`](documents/FDE_Product_Backlog_User_Stories.txt)
 - [`FDE_UX_User_Journey_Document.txt`](documents/FDE_UX_User_Journey_Document.txt)
+- [`AWS_Capstone_Resource_Requirements.txt`](documents/AWS_Capstone_Resource_Requirements.txt)

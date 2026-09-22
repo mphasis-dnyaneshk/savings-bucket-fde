@@ -1,0 +1,401 @@
+SAVINGS BUCKET
+AWS CAPSTONE RESOURCE REQUIREMENTS
+
+Purpose
+=======
+
+This document defines the minimum AWS resources required to run the Savings Bucket capstone project.
+
+The goal is to deploy a working demonstration of:
+
+- React + TypeScript + Vite frontend.
+- Python/FastAPI microservices running on ECS Fargate.
+- PostgreSQL persistence using Amazon RDS.
+- Mock banking behavior with no production financial data.
+- Recurring-contribution workflow using EventBridge and SQS.
+- Logs, health checks, and basic operational visibility.
+
+This is a capstone deployment, not a production banking deployment. Advanced infrastructure security is deliberately deferred. That includes WAF, Shield Advanced, private ECS tasks, private API endpoints, VPC endpoints, centralized security tooling, multi-region disaster recovery, and production-grade identity integration.
+
+Important boundary
+==================
+
+All financial activity in the capstone must remain mock data. The Banking Transaction Service is a mock adapter. No production banking account, customer data, payment credential, or real money movement is required or permitted.
+
+Recommended capstone deployment shape
+=====================================
+
+Browser
+  -> Application Load Balancer (public API entry point)
+    -> ECS Fargate frontend service (Nginx serving React/Vite build)
+    -> ECS Fargate backend services (FastAPI)
+  -> RDS PostgreSQL
+  -> EventBridge Scheduler/Rules -> SQS -> Recurring Contribution worker
+  -> CloudWatch logs and metrics
+
+The first deployment can use one Application Load Balancer as the public entry point for both the frontend and backend APIs. Amazon API Gateway and Cognito are retained as later enhancements because they add routing and identity value but are not required to demonstrate the capstone locally or in an initial AWS environment.
+
+Resource summary
+================
+
+| Area | AWS resource | Required for first running deployment | Purpose and justification |
+| --- | --- | --- | --- |
+| Networking | Amazon VPC | Yes | Provides the network boundary for ECS, RDS, load balancing, and messaging integrations. |
+| Networking | Two public subnets in two Availability Zones | Yes, simplified capstone layout | Gives the ALB and ECS tasks reachable subnets and basic Availability Zone distribution. |
+| Networking | Internet Gateway | Yes | Allows browser traffic to reach the public ALB and allows public ECS tasks to reach AWS services when needed. |
+| Networking | Public route table | Yes | Routes public subnet traffic through the Internet Gateway. |
+| Networking | Security groups | Yes, minimum only | Allows ALB-to-ECS and ECS-to-RDS traffic. Use only the required ports even though advanced security is deferred. |
+| Frontend | ECS Fargate frontend service | Yes | Runs the React/Vite production build in an Nginx container as a standalone service, consistent with the backend deployment model. |
+| Frontend | Amazon ECR frontend repository | Yes | Stores the frontend container image used by the ECS frontend service. |
+| Container registry | Amazon ECR backend repositories | Yes | Stores immutable container images for the FastAPI services. |
+| Compute | Amazon ECS cluster | Yes | Logical runtime boundary for the containerized services. |
+| Compute | ECS Fargate task definitions | Yes | Defines CPU, memory, image, environment variables, ports, and health checks for each service. |
+| Compute | ECS Fargate services | Yes | Keeps the bucket, contribution, withdrawal, recurring, and notification services running. |
+| Ingress | Application Load Balancer | Yes | Provides one public API endpoint and routes requests to the FastAPI services. |
+| Database | Amazon RDS for PostgreSQL | Yes | Provides persistent bucket, transaction, recurring schedule, and outbox data. |
+| Messaging | Amazon SQS queue | Required for recurring workflow | Provides durable work processing and retry behavior for recurring contributions. |
+| Messaging | SQS dead-letter queue | Recommended | Captures failed recurring messages for demonstration and manual review. |
+| Events | Amazon EventBridge Scheduler or Rule | Required for recurring workflow | Triggers recurring-contribution work on a schedule. |
+| Events | EventBridge custom event bus | Optional for first demo | Routes domain events to notifications and other consumers. SQS can be used directly initially. |
+| Observability | CloudWatch log groups | Yes | Collects container logs for troubleshooting and demonstration. |
+| Observability | CloudWatch metrics and alarms | Recommended | Shows service health, task failures, ALB errors, queue depth, and DLQ messages. |
+| Deployment | AWS IAM roles | Yes | Allows ECS tasks and deployment tools to access only the AWS resources they require. Basic task/execution roles are unavoidable even when advanced security is deferred. |
+| Deployment | CodeBuild/CodePipeline or GitHub Actions | Optional | Automates image build, push, and deployment. Manual deployment is acceptable for the first capstone demo. |
+
+1. Networking resources
+=======================
+
+1.1 VPC
+--------
+
+Create one VPC, for example:
+
+- CIDR: 10.0.0.0/16.
+- Region: one AWS region selected for the capstone.
+- Availability Zones: two AZs in that region.
+
+Justification: ECS, ALB, and RDS need to communicate inside a common VPC. One VPC is sufficient for the capstone and avoids the complexity of multi-region networking.
+
+1.2 Subnets
+-----------
+
+Use the following simplified layout:
+
+- Public subnet A: 10.0.1.0/24.
+- Public subnet B: 10.0.2.0/24.
+
+Place the public ALB and ECS Fargate tasks in these subnets. For the simplest capstone deployment, tasks may receive public IP addresses.
+
+RDS can use a DB subnet group spanning the same two subnets for the first deployment. If RDS public access is enabled to simplify setup, restrict access to the developer IP and never use production data. A better follow-up is to add dedicated private database subnets and disable public RDS access.
+
+1.3 Internet Gateway and route table
+------------------------------------
+
+Create:
+
+- One Internet Gateway attached to the VPC.
+- One public route table.
+- A default route `0.0.0.0/0` to the Internet Gateway.
+- Associate the public route table with both public subnets.
+
+Justification: This allows the browser to reach the ALB and allows public ECS tasks to pull images and write logs without introducing NAT Gateway cost.
+
+1.4 Security groups
+--------------------
+
+Even though advanced security is deferred, basic connectivity rules are required:
+
+ALB security group:
+
+- Allow TCP 80 from the internet for the capstone demo.
+- Allow TCP 443 later when HTTPS is configured.
+- Allow outbound traffic to ECS tasks.
+
+ECS security group:
+
+- Allow the FastAPI service port from the ALB security group.
+- Allow outbound traffic to RDS, SQS, EventBridge, and CloudWatch endpoints.
+
+RDS security group:
+
+- Allow PostgreSQL TCP 5432 only from the ECS security group.
+- For initial local administration, temporarily allow the developer IP if required, then remove it.
+
+Do not expose PostgreSQL to `0.0.0.0/0`.
+
+2. Frontend service resources
+=============================
+
+2.1 ECS Fargate frontend service
+--------------------------------
+
+Build the frontend container from `frontend/Dockerfile`:
+
+    docker build -t savings-bucket-frontend ./frontend
+
+The Dockerfile runs `npm ci`, runs `npm run build`, and serves the generated Vite files through Nginx. The container listens on port 80.
+
+Required configuration values at build time:
+
+- `VITE_BUCKET_API_URL`.
+- `VITE_CONTRIBUTION_API_URL`.
+- `VITE_WITHDRAWAL_API_URL`.
+- `VITE_RECURRING_API_URL`.
+- `VITE_NOTIFICATION_API_URL`.
+- `VITE_CUSTOMER_ID` for the mock capstone identity, until real authentication is added.
+
+The frontend ECS task must receive the backend API URL configuration at image-build time or through the deployment pipeline. The browser must call the public ALB/API URL instead of `localhost` in the AWS environment.
+
+Create one ECS target group for the frontend on container port 80. The ALB default route should send browser requests to the frontend target group. API paths should use path-based rules to route to the backend services.
+
+3. Container and compute resources
+==================================
+
+3.1 ECR repositories
+--------------------
+
+Create one ECR repository for the frontend and each backend image:
+
+- savings-bucket-frontend.
+
+- savings-bucket-bucket-service.
+- savings-bucket-contribution-service.
+- savings-bucket-withdrawal-service.
+- savings-bucket-recurring-service.
+- savings-bucket-notification-service.
+
+3.2 ECS cluster
+---------------
+
+Create one ECS cluster using the Fargate launch type.
+
+Justification: The approved architecture uses ECS Fargate and does not require Kubernetes/EKS. Fargate removes the need to manage worker nodes for a capstone.
+
+3.3 ECS task definitions and services
+-------------------------------------
+
+Create one task definition and service for the frontend and each FastAPI service:
+
+- Frontend Service: port 80 inside the container; Nginx serves the React/Vite production build.
+
+- Bucket Service: port 8000 inside the container.
+- Contribution Service: port 8000 inside the container.
+- Withdrawal Service: port 8000 inside the container.
+- Recurring Contribution Service: port 8000 inside the container.
+- Notification Service: port 8000 inside the container.
+
+Use one task per service initially. Scale out only if the demonstration requires it.
+
+Each task should define:
+
+- Container image from ECR.
+- CPU and memory suitable for a small FastAPI service.
+- `APP_ENV=aws-capstone`.
+- Database connection configuration.
+- Mock banking mode enabled.
+- Event and queue configuration.
+- CloudWatch log configuration.
+- Container health check using `/health/live`.
+
+The ALB should route the default browser path and API paths to the appropriate service. Example routes:
+
+- `/` and frontend asset paths -> frontend service.
+
+- `/v1/buckets*` -> bucket service.
+- `/v1/buckets/*/contributions*` -> contribution service.
+- `/v1/buckets/*/withdrawals*` -> withdrawal service.
+- `/v1/buckets/*/recurring-contributions*` -> recurring service.
+- `/v1/notifications*` -> notification service.
+
+The mock identity header `X-Customer-ID` may be used for the capstone demo until Cognito/OIDC is implemented.
+
+3.4 Application Load Balancer
+-----------------------------
+
+Create one internet-facing ALB with:
+
+- Listener on port 80 for the first demo.
+- Target groups for the FastAPI services.
+- Health checks to `/health/live`.
+- Path-based routing for the service endpoints.
+
+Justification: The ALB gives the frontend one stable backend URL and avoids exposing five separate service URLs to the browser.
+
+4. Database resources
+=====================
+
+4.1 RDS PostgreSQL
+------------------
+
+Create one small PostgreSQL RDS instance for the capstone.
+
+Initial database requirements:
+
+- Database: `savings_bucket`.
+- PostgreSQL version compatible with the local migration.
+- Small development instance class.
+- Single-AZ is acceptable for the capstone.
+- Automated backups can use a short development retention period.
+- Storage sized for demonstration data.
+
+The foundation schema includes:
+
+- `buckets`.
+- `bucket_transactions`.
+- `outbox_events`.
+
+The services should continue to use mock banking behavior. RDS stores capstone records only; it is not a banking ledger.
+
+4.2 Database migration
+----------------------
+
+Run the versioned migration as part of deployment or a one-time migration task:
+
+    db/migrations/001_foundation.sql
+
+Do not rely on application startup to silently change the database schema in the shared AWS environment.
+
+5. Messaging and scheduling resources
+=====================================
+
+5.1 SQS
+-------
+
+Create one standard SQS queue for recurring contribution work:
+
+    savings-bucket-recurring-contribution-queue
+
+Configure:
+
+- Visibility timeout longer than the worker processing time.
+- Receive count redrive policy.
+- Dead-letter queue.
+
+5.2 EventBridge Scheduler
+-------------------------
+
+Use EventBridge Scheduler or an EventBridge scheduled rule to trigger recurring contribution work. The scheduler should publish a due-execution message to SQS. The recurring service consumes the message and reuses the mock contribution workflow.
+
+5.3 Notifications
+------------------
+
+For the capstone, notification-service can consume approved events or be called through a mock internal endpoint. No SES, SMS, or third-party notification provider is required for the first deployment. The local implementation can record a `DELIVERED` notification in memory or in PostgreSQL.
+
+6. Observability resources
+==========================
+
+6.1 CloudWatch Logs
+-------------------
+
+Create one log group per service or one clearly separated application log group. Retain logs for a short capstone period, such as 7 to 14 days.
+
+Include:
+
+- Service name.
+- Correlation ID.
+- Operation.
+- Bucket ID where applicable.
+- Transaction ID where applicable.
+- Outcome and error category.
+
+Do not log passwords, tokens, or sensitive financial data.
+
+6.2 CloudWatch alarms
+---------------------
+
+Recommended first alarms:
+
+- ALB HTTP 5xx errors.
+- ECS task stopped count.
+- Target health failures.
+- RDS CPU/storage thresholds.
+- SQS visible message count.
+- SQS dead-letter queue message count.
+
+7. Identity and deployment resources
+====================================
+
+7.1 IAM roles
+-------------
+
+The minimum required IAM roles are:
+
+- ECS task execution role: pull images from ECR and write logs to CloudWatch.
+- ECS task role: access the specific AWS services used by the application, such as SQS and EventBridge.
+- Deployment role or developer role: deploy ECR images, ECS services, S3 files, and CloudFront invalidations.
+
+Use the smallest practical permissions for the capstone. Advanced IAM review can happen later.
+
+7.2 Secrets
+-----------
+
+For the first demo, environment variables may be used through the deployment mechanism, but passwords must not be committed to Git. Before sharing the AWS environment or moving beyond a private demo, store the RDS password in Secrets Manager.
+
+Secrets Manager is therefore recommended, but not a blocker for the first local-style capstone deployment.
+
+8. Deferred resources
+=====================
+
+The following are intentionally not required for the first running capstone deployment:
+
+| Resource | Why deferred |
+| --- | --- |
+| Amazon S3 frontend hosting | The frontend is required to run as its own ECS Fargate service for this capstone. S3 can be considered later as a static-hosting alternative. |
+| Amazon CloudFront | Not required when the ALB exposes the frontend ECS service directly. Add later for CDN caching and HTTPS edge delivery. |
+| Amazon API Gateway | ALB provides the first stable API boundary; add API Gateway later for centralized API policy, throttling, and JWT integration. |
+| Amazon Cognito | The capstone can use the mock `X-Customer-ID` header initially; add Cognito before real-user testing. |
+| Private ECS subnets and NAT Gateway | Public ECS tasks reduce networking complexity and NAT cost for the first demo. |
+| Private RDS subnets | Recommended later; basic access restrictions remain required. |
+| AWS WAF | Not required to demonstrate application behavior. |
+| AWS Shield Advanced | Not required for a capstone. |
+| VPC endpoints / PrivateLink | Not required for the first deployment. |
+| Multi-region deployment | Not required for a single-region capstone. |
+| Multi-AZ RDS | Useful for production availability but not required for the demo. |
+| ElastiCache/Redis | Not required by the current application design. |
+| SES/SNS/mobile notifications | Notification service can use a mock provider initially. |
+| AI/Recommendation service | Future advisory scope and outside the MVP. |
+
+9. Minimum deployment order
+===========================
+
+1. Create the AWS region and VPC networking.
+2. Create the ECR repositories.
+3. Build and push the frontend and backend images.
+4. Create RDS PostgreSQL and apply migrations.
+5. Create SQS and the DLQ.
+6. Create EventBridge schedule/rule for recurring work.
+7. Create the ECS cluster, task definitions, services, and ALB.
+8. Verify service health endpoints and API routes.
+9. Create the ECS frontend service and configure the ALB default route to it.
+10. Verify the frontend and backend API routes through the ALB URL.
+11. Run the end-to-end capstone demo using mock customer and banking data.
+12. Add Cognito, API Gateway, private networking, CloudFront, and stronger security controls as a follow-up phase.
+
+10. Capstone success criteria
+============================
+
+The AWS environment is sufficient for the capstone when:
+
+- The frontend loads from the ALB URL through its dedicated ECS Fargate service.
+- The frontend can create and list buckets through the ALB.
+- Bucket details show progress and transaction history.
+- Contribution and withdrawal mock APIs return deterministic results.
+- Recurring schedules can be created and updated.
+- A scheduled message reaches SQS and can be processed by the recurring service.
+- Notification-service can record a mock delivered notification.
+- All ECS services expose healthy `/health/live` endpoints.
+- CloudWatch contains enough logs to trace a request with its correlation ID.
+- No production customer or banking data is used.
+
+Cost note
+=========
+
+AWS charges apply even to small capstone resources. To control cost:
+
+- Use one region.
+- Use small development instance sizes.
+- Run one Fargate task per service.
+- Avoid NAT Gateways initially because they have a fixed hourly cost.
+- Use short CloudWatch log retention.
+- Delete or stop resources after demonstrations.
+- Keep the frontend as a dedicated ECS service for this capstone; do not require an S3 website URL.
