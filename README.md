@@ -168,11 +168,13 @@ Start the other services manually when needed:
 ./.venv/Scripts/python.exe -m uvicorn services.notification_service.main:app --reload --port 8005
 ```
 
-The normal local workflow uses your installed PostgreSQL. Alternatively, build and run all five service containers with the Compose PostgreSQL instance:
+The normal local workflow uses your installed PostgreSQL. Alternatively, build and run PostgreSQL, all five backend services, and the frontend service with Docker Compose:
 
 ```bash
 docker compose up --build
 ```
+
+Open the containerized frontend at `http://localhost:5173`. The frontend container serves the Vite production build through Nginx, while the browser calls the backend services through their published ports `8001` through `8005`.
 
 Stop the containers with `docker compose down`. Add `-v` only when you want to remove the local PostgreSQL volume and its data.
 

@@ -105,5 +105,29 @@ services:
       postgres:
         condition: service_healthy
 
+  frontend:
+    build:
+      context: ./frontend
+    environment:
+      VITE_CUSTOMER_ID: customer-001
+      VITE_BUCKET_API_URL: http://localhost:8001
+      VITE_CONTRIBUTION_API_URL: http://localhost:8002
+      VITE_WITHDRAWAL_API_URL: http://localhost:8003
+      VITE_RECURRING_API_URL: http://localhost:8004
+      VITE_NOTIFICATION_API_URL: http://localhost:8005
+    ports:
+      - "5173:80"
+    depends_on:
+      bucket-service:
+        condition: service_started
+      contribution-service:
+        condition: service_started
+      withdrawal-service:
+        condition: service_started
+      recurring-contribution-service:
+        condition: service_started
+      notification-service:
+        condition: service_started
+
 volumes:
   postgres-data:
