@@ -56,12 +56,28 @@ h3 { font-size: 19px; }
 .icon-button:hover, .notification-button:hover { background: #fff; }
 .notification-button { position: relative; }
 .notification-button span { position: absolute; right: 0; top: -3px; min-width: 15px; height: 15px; display: grid; place-items: center; border-radius: 10px; background: var(--coral); color: white; font-size: 9px; }
+.notification-wrap { position: relative; }
+.notification-popover { position: absolute; z-index: 5; top: 50px; right: 0; width: min(360px, calc(100vw - 32px)); padding: 18px; border: 1px solid var(--line); border-radius: 9px; background: var(--paper); box-shadow: var(--shadow); }
+.notification-popover-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding-bottom: 13px; border-bottom: 1px solid var(--line); }
+.notification-popover-header h3 { margin-top: 6px; font-size: 18px; }
+.notification-list { max-height: 330px; overflow-y: auto; }
+.notification-item { display: flex; gap: 10px; padding: 14px 0; border-bottom: 1px solid var(--line); }
+.notification-item:last-child { border-bottom: 0; }
+.notification-dot { width: 25px; height: 25px; display: grid; place-items: center; flex: 0 0 auto; border-radius: 50%; color: var(--teal-dark); background: #d9f1e5; }
+.notification-content { min-width: 0; flex: 1; }
+.notification-item-close { width: 26px; height: 26px; display: grid; place-items: center; flex: 0 0 auto; border: 1px solid var(--line); border-radius: 50%; color: var(--muted); background: transparent; }
+.notification-item-close:hover { color: var(--ink); background: #edf0e9; }
+.notification-item strong, .notification-item p, .notification-item small { display: block; }
+.notification-item strong { font-size: 12px; }
+.notification-item p { margin-top: 4px; color: var(--ink); font-size: 12px; line-height: 1.45; }
+.notification-item small { margin-top: 5px; color: var(--muted); font-size: 10px; text-transform: uppercase; }
+.notification-empty { padding: 22px 0 6px; color: var(--muted); font-size: 13px; }
 .primary-button, .secondary-button, .light-button, .text-button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: 0; border-radius: 6px; padding: 12px 16px; font-weight: 700; transition: transform .2s ease, background .2s ease; }
 .primary-button { color: var(--ink); background: var(--teal); }
 .primary-button:hover, .light-button:hover { transform: translateY(-2px); background: #a5e6d0; }
 .primary-button:disabled { cursor: wait; opacity: .7; transform: none; }
 .primary-button.dark { color: white; background: var(--ink); }
-.secondary-button { border: 1px solid var(--line); color: var(--ink); background: transparent; }
+.secondary-button { border: 1px solid #d6ddd7; color: var(--ink); background: #f4f7f3; }
 .secondary-button:hover { background: #fff; }
 .light-button { color: var(--ink); background: #fff; }
 .text-button { padding: 2px 0; color: var(--teal-dark); background: transparent; }

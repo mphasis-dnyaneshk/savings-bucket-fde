@@ -42,6 +42,7 @@ function App() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [view, setView] = useState<View>("overview");
   const [modal, setModal] = useState<"create" | "contribute" | "withdraw" | "recurring" | null>(null);
   const [loading, setLoading] = useState(true);
@@ -64,6 +65,23 @@ function App() {
     }
   }
 
+  async function loadNotifications() {
+    try {
+      setNotifications(await api.listNotifications());
+    } catch {
+      // Notifications are optional local feedback and should not block the dashboard.
+    }
+  }
+
+  async function dismissNotification(notificationId: string) {
+    try {
+      await api.dismissNotification(notificationId);
+      setNotifications((current) => current.filter((item) => item.notification_id !== notificationId));
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Could not dismiss notification.");
+    }
+  }
+
   async function selectBucket(bucket: Bucket) {
     setSelectedBucket(bucket);
     setView("bucket");
@@ -82,6 +100,7 @@ function App() {
 
   useEffect(() => {
     void loadBuckets();
+    void loadNotifications();
   }, []);
 
   const totalSaved = buckets.reduce((sum, bucket) => sum + Number(bucket.current_balance), 0);
@@ -130,6 +149,8 @@ function App() {
         message: `${kind === "contribute" ? "Contribution" : "Withdrawal"} of ${formatMoney(amount)} completed in mock mode.`,
       });
       setNotifications((current) => [notification, ...current]);
+      await loadBuckets();
+      if (selectedBucket) await selectBucket(selectedBucket);
       setModal(null);
       setError(`${kind === "contribute" ? "Contribution" : "Withdrawal"} ${result.status.toLowerCase()}. Mock financial state is recorded separately from bucket allocation.`);
     } catch (requestError) {
@@ -195,7 +216,7 @@ function App() {
       <main className="main-content">
         <header className="topbar">
           <div><span className="breadcrumb">Savings / {view === "overview" ? "Overview" : view === "activity" ? "Activity" : selectedBucket?.name || "Goal"}</span><h1>{view === "overview" ? "Your savings, in view." : view === "activity" ? "Activity" : selectedBucket?.name || "Goal detail"}</h1></div>
-          <div className="top-actions"><button className="icon-button" title="Refresh data" onClick={() => void loadBuckets()}><RefreshCw size={18} /></button><button className="notification-button" title="Notifications"><Bell size={18} /><span>{notifications.length || ""}</span></button><button className="primary-button" onClick={() => setModal("create")}><Plus size={18} /> New goal</button></div>
+          <div className="top-actions"><button className="icon-button" title="Refresh data" onClick={() => { void loadBuckets(); void loadNotifications(); }}><RefreshCw size={18} /></button><div className="notification-wrap"><button className="notification-button" title="Notifications" aria-label="Notifications" aria-expanded={notificationsOpen} onClick={() => setNotificationsOpen((open) => !open)}><Bell size={18} />{notifications.length > 0 && <span>{notifications.length}</span>}</button>{notificationsOpen && <NotificationPopover notifications={notifications} onDismiss={(notificationId) => void dismissNotification(notificationId)} />}</div><button className="primary-button" onClick={() => setModal("create")}><Plus size={18} /> New goal</button></div>
         </header>
 
         {error && <div className="notice" role="status"><span>{error}</span><button onClick={() => setError("")} aria-label="Dismiss message"><X size={16} /></button></div>}
@@ -238,6 +259,17 @@ function BucketDetail({ bucket, transactions, schedules, onBack, onContribute, o
 
 function Activity({ buckets, onSelect }: { buckets: Bucket[]; onSelect: (bucket: Bucket) => void }) {
   return <section className="activity-page"><div className="section-heading"><div><span className="eyebrow">Activity</span><h2>All your goals, one glance</h2></div></div>{buckets.length ? buckets.map((bucket) => <button className="activity-bucket" key={bucket.bucket_id} onClick={() => onSelect(bucket)}><span className="goal-icon"><Target size={18} /></span><span><strong>{bucket.name}</strong><small>{formatMoney(bucket.current_balance)} saved · {Number(bucket.progress_percentage).toFixed(0)}% complete</small></span><ChevronRight size={18} /></button>) : <EmptyState onCreate={() => undefined} />}</section>;
+}
+
+function NotificationPopover({ notifications, onDismiss }: { notifications: Notification[]; onDismiss: (notificationId: string) => void }) {
+  return <section className="notification-popover" aria-label="Notifications">
+    <div className="notification-popover-header"><div><span className="eyebrow">Updates</span><h3>Notifications</h3></div><span className="activity-count">{notifications.length}</span></div>
+    {notifications.length ? <div className="notification-list">{notifications.map((notification) => <article className="notification-item" key={notification.notification_id}><span className="notification-dot"><Check size={13} /></span><div className="notification-content"><strong>{notification.event_type.replace(/([A-Z])/g, " $1").trim()}</strong><p>{notification.message}</p><small>{notification.status} · {formatDateTime(notification.created_at)}</small></div><button className="notification-item-close" title="Dismiss notification" aria-label={`Dismiss ${notification.event_type} notification`} onClick={() => onDismiss(notification.notification_id)}><X size={14} /></button></article>)}</div> : <p className="notification-empty">No notifications yet.</p>}
+  </section>;
+}
+
+function formatDateTime(value: string) {
+  return new Intl.DateTimeFormat("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(value));
 }
 
 function EmptyState({ onCreate }: { onCreate: () => void }) {

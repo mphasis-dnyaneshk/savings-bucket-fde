@@ -69,4 +69,9 @@ export const api = {
       headers: {},
       body: JSON.stringify({ ...payload, customer_id: customerId }),
     }),
+  listNotifications: () => request<Notification[]>(`${notificationApi}/v1/notifications`),
+  dismissNotification: (notificationId: string) =>
+    request<Notification>(`${notificationApi}/v1/notifications/${notificationId}`, {
+      method: "DELETE",
+    }),
 };
