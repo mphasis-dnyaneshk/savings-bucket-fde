@@ -41,3 +41,11 @@ class TransactionResponse(BaseModel):
     status: str
     external_reference: str | None
     created_at: datetime
+
+
+class ApplyTransactionRequest(BaseModel):
+    type: str = Field(pattern="^(CONTRIBUTION|WITHDRAWAL)$")
+    amount: Decimal = Field(gt=0)
+    status: str = Field(pattern="^(SUCCESS|FAILED|REVERSED)$")
+    external_reference: str | None = None
+    idempotency_key: str

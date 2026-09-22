@@ -35,5 +35,22 @@ class MockNotificationStore:
         record = self._records.get(notification_id)
         return record if record and record.customer_id == customer_id else None
 
+    def dismiss(self, customer_id: str, notification_id: UUID) -> NotificationRecord | None:
+        record = self.get(customer_id, notification_id)
+        if record is not None:
+            del self._records[notification_id]
+        return record
+
+    def list_for_customer(self, customer_id: str) -> list[NotificationRecord]:
+        return sorted(
+            (
+                record
+                for record in self._records.values()
+                if record.customer_id == customer_id
+            ),
+            key=lambda record: record.created_at,
+            reverse=True,
+        )
+
 
 mock_store = MockNotificationStore()

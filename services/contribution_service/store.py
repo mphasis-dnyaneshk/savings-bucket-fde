@@ -52,6 +52,11 @@ class MockContributionStore:
         self._by_id[record.contribution_id] = record
         return record
 
+    def get_by_key(
+        self, customer_id: str, idempotency_key: str
+    ) -> ContributionRecord | None:
+        return self._records.get((customer_id, idempotency_key))
+
     def get(self, customer_id: str, contribution_id: UUID) -> ContributionRecord | None:
         record = self._by_id.get(contribution_id)
         return record if record and record.customer_id == customer_id else None

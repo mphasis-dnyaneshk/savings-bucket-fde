@@ -20,6 +20,14 @@ def register_routes(app: FastAPI) -> None:
     async def status() -> dict[str, str]:
         return {"status": "ready", "mode": "local-noop"}
 
+    @app.get("/v1/notifications")
+    async def list_notifications(
+        customer_id: str = Depends(require_customer_id),
+    ) -> list[NotificationResponse]:
+        return [
+            to_response(record) for record in mock_store.list_for_customer(customer_id)
+        ]
+
     @app.post("/internal/notifications", status_code=201)
     async def create_notification(request: NotificationRequest) -> NotificationResponse:
         return to_response(
@@ -32,6 +40,16 @@ def register_routes(app: FastAPI) -> None:
         customer_id: str = Depends(require_customer_id),
     ) -> NotificationResponse:
         record = mock_store.get(customer_id, notification_id)
+        if record is None:
+            raise HTTPException(status_code=404, detail="Notification not found.")
+        return to_response(record)
+
+    @app.delete("/v1/notifications/{notification_id}")
+    async def dismiss_notification(
+        notification_id: UUID,
+        customer_id: str = Depends(require_customer_id),
+    ) -> NotificationResponse:
+        record = mock_store.dismiss(customer_id, notification_id)
         if record is None:
             raise HTTPException(status_code=404, detail="Notification not found.")
         return to_response(record)

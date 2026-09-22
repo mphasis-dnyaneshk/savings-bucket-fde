@@ -27,6 +27,7 @@ services:
       BANKING_ADAPTER_MODE: mock
       EVENT_BUS_MODE: local
       SQS_MODE: local
+      BUCKET_SERVICE_URL: http://bucket-service:8000
     ports:
       - "8001:8000"
     depends_on:
@@ -45,6 +46,7 @@ services:
       BANKING_ADAPTER_MODE: mock
       EVENT_BUS_MODE: local
       SQS_MODE: local
+      BUCKET_SERVICE_URL: http://bucket-service:8000
     ports:
       - "8002:8000"
     depends_on:
@@ -63,6 +65,7 @@ services:
       BANKING_ADAPTER_MODE: mock
       EVENT_BUS_MODE: local
       SQS_MODE: local
+      BUCKET_SERVICE_URL: http://bucket-service:8000
     ports:
       - "8003:8000"
     depends_on:

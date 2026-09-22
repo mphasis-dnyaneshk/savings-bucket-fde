@@ -9,6 +9,7 @@ from shared.config import get_settings
 from services.bucket_service.schemas import (
     BucketResponse,
     CreateBucketRequest,
+    ApplyTransactionRequest,
     TransactionResponse,
 )
 from services.bucket_service.store import (
@@ -57,6 +58,29 @@ def to_transaction_response(transaction: TransactionRecord) -> TransactionRespon
 
 
 def register_routes(app: FastAPI) -> None:
+    @app.post("/internal/buckets/{bucket_id}/transactions")
+    async def apply_transaction(
+        bucket_id: UUID,
+        request: ApplyTransactionRequest,
+        customer_id: str = Depends(require_customer_id),
+        store: BucketStore = Depends(lambda: get_bucket_store(app)),
+    ) -> BucketResponse:
+        try:
+            bucket = store.apply_transaction(
+                customer_id,
+                bucket_id,
+                request.type,
+                request.amount,
+                request.status,
+                request.external_reference,
+                request.idempotency_key,
+            )
+        except LookupError as error:
+            raise HTTPException(status_code=404, detail=str(error))
+        except ValueError as error:
+            raise HTTPException(status_code=422, detail=str(error))
+        return to_bucket_response(bucket)
+
     @app.get("/v1/buckets")
     async def list_buckets(
         customer_id: str = Depends(require_customer_id),

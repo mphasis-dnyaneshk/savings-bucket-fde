@@ -19,7 +19,7 @@ The R0 foundation and the bucket-service R1 slice are implemented:
 - Foundation SQL migration for buckets, transactions, and outbox events.
 - Docker image definition and Pytest/Ruff development configuration.
 
-The bucket, contribution, withdrawal, recurring-contribution, and notification services now expose working mock-first API flows. Contribution and withdrawal requests return deterministic mock `SUCCESS` records with idempotency protection. Recurring schedules support create, list, read, pause, and update. Notification delivery is represented by an in-memory `DELIVERED` result. The React + TypeScript + Vite frontend is now scaffolded and wired to these local APIs. Real OIDC/JWT validation, EventBridge/SQS processing, Terraform, and financial integration are not implemented yet.
+The bucket, contribution, withdrawal, recurring-contribution, and notification services now expose working mock-first API flows. Successful mock contributions and withdrawals update bucket balances and transaction history through bucket-service, with idempotency protection and overdraft validation. Recurring schedules support create, list, read, pause, and update. Notification delivery is represented by an in-memory `DELIVERED` result. The React + TypeScript + Vite frontend is now scaffolded and wired to these local APIs. Real OIDC/JWT validation, EventBridge/SQS processing, Terraform, and banking integration are not implemented yet.
 
 ## MVP scope
 
@@ -286,7 +286,7 @@ curl -X POST http://localhost:8003/v1/buckets/<bucket_id>/withdrawals \
 curl -H 'X-Customer-ID: customer-001' http://localhost:8003/v1/withdrawals/<withdrawal_id>
 ```
 
-The mock returns `SUCCESS`; real balance validation and banking integration are future work.
+The mock returns `SUCCESS`, updates the bucket allocation, and records transaction history through bucket-service. Real banking integration remains future work.
 
 ### Recurring contribution service (`localhost:8004`)
 

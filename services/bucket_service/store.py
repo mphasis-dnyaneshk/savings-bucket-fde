@@ -52,6 +52,17 @@ class BucketStore(Protocol):
         self, customer_id: str, bucket_id: UUID
     ) -> list[TransactionRecord]: ...
 
+    def apply_transaction(
+        self,
+        customer_id: str,
+        bucket_id: UUID,
+        transaction_type: str,
+        amount: Decimal,
+        status: str,
+        external_reference: str | None,
+        idempotency_key: str,
+    ) -> BucketRecord: ...
+
 
 class InMemoryBucketStore:
     def __init__(self) -> None:
@@ -104,6 +115,55 @@ class InMemoryBucketStore:
             if transaction.customer_id == customer_id
             and transaction.bucket_id == bucket_id
         ]
+
+    def apply_transaction(
+        self,
+        customer_id: str,
+        bucket_id: UUID,
+        transaction_type: str,
+        amount: Decimal,
+        status: str,
+        external_reference: str | None,
+        idempotency_key: str,
+    ) -> BucketRecord:
+        bucket = self.get_bucket(customer_id, bucket_id)
+        if bucket is None:
+            raise LookupError("Bucket not found.")
+        if any(
+            transaction.customer_id == customer_id
+            and transaction.bucket_id == bucket_id
+            and transaction.external_reference == external_reference
+            for transaction in self._transactions
+        ):
+            return bucket
+        if status == "SUCCESS":
+            balance = (
+                bucket.current_balance + amount
+                if transaction_type == "CONTRIBUTION"
+                else bucket.current_balance - amount
+            )
+            if balance < 0:
+                raise ValueError("Withdrawal exceeds available bucket balance.")
+        else:
+            balance = bucket.current_balance
+        now = datetime.now(timezone.utc)
+        updated = BucketRecord(
+            **{**bucket.__dict__, "current_balance": balance, "updated_at": now}
+        )
+        self._buckets[bucket_id] = updated
+        self._transactions.append(
+            TransactionRecord(
+                transaction_id=uuid4(),
+                bucket_id=bucket_id,
+                customer_id=customer_id,
+                type=transaction_type,
+                amount=amount,
+                status=status,
+                external_reference=external_reference,
+                created_at=now,
+            )
+        )
+        return updated
 
 
 class PostgresBucketStore:
@@ -172,6 +232,74 @@ class PostgresBucketStore:
                 (bucket_id, customer_id),
             ).fetchall()
         return [_transaction_from_row(row) for row in rows]
+
+    def apply_transaction(
+        self,
+        customer_id: str,
+        bucket_id: UUID,
+        transaction_type: str,
+        amount: Decimal,
+        status: str,
+        external_reference: str | None,
+        idempotency_key: str,
+    ) -> BucketRecord:
+        with psycopg.connect(self.database_url, row_factory=dict_row) as connection:
+            with connection.transaction():
+                row = connection.execute(
+                    """
+                    SELECT bucket_id, customer_id, name, target_amount, current_balance,
+                           target_date, status, created_at, updated_at
+                    FROM buckets WHERE bucket_id = %s AND customer_id = %s FOR UPDATE
+                    """,
+                    (bucket_id, customer_id),
+                ).fetchone()
+                if not row:
+                    raise LookupError("Bucket not found.")
+                existing = connection.execute(
+                    """
+                    SELECT transaction_id FROM bucket_transactions
+                    WHERE customer_id = %s AND idempotency_key = %s
+                    """,
+                    (customer_id, idempotency_key),
+                ).fetchone()
+                if existing:
+                    return _bucket_from_row(row)
+                current_balance = row["current_balance"]
+                if status == "SUCCESS":
+                    current_balance = (
+                        current_balance + amount
+                        if transaction_type == "CONTRIBUTION"
+                        else current_balance - amount
+                    )
+                    if current_balance < 0:
+                        raise ValueError("Withdrawal exceeds available bucket balance.")
+                    row = connection.execute(
+                        """
+                        UPDATE buckets SET current_balance = %s, updated_at = CURRENT_TIMESTAMP
+                        WHERE bucket_id = %s
+                        RETURNING bucket_id, customer_id, name, target_amount, current_balance,
+                                  target_date, status, created_at, updated_at
+                        """,
+                        (current_balance, bucket_id),
+                    ).fetchone()
+                connection.execute(
+                    """
+                    INSERT INTO bucket_transactions
+                    (transaction_id, bucket_id, customer_id, type, amount, status, external_reference, idempotency_key)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    """,
+                    (
+                        uuid4(),
+                        bucket_id,
+                        customer_id,
+                        transaction_type,
+                        amount,
+                        status,
+                        external_reference,
+                        idempotency_key,
+                    ),
+                )
+        return _bucket_from_row(row)
 
 
 def _bucket_from_row(row: dict) -> BucketRecord:

@@ -112,12 +112,28 @@ def test_notification_delivery_and_customer_lookup() -> None:
     assert created.status_code == 201
     notification_id = created.json()["notification_id"]
 
+    listed = client.get(
+        "/v1/notifications",
+        headers={"X-Customer-ID": "customer-1"},
+    )
+    assert listed.status_code == 200
+    assert listed.json()[0]["notification_id"] == notification_id
+
     lookup = client.get(
         f"/v1/notifications/{notification_id}",
         headers={"X-Customer-ID": "customer-1"},
     )
     assert lookup.status_code == 200
     assert lookup.json()["status"] == "DELIVERED"
+
+    dismissed = client.delete(
+        f"/v1/notifications/{notification_id}",
+        headers={"X-Customer-ID": "customer-1"},
+    )
+    assert dismissed.status_code == 200
+    assert client.get(
+        "/v1/notifications", headers={"X-Customer-ID": "customer-1"}
+    ).json() == []
 
     unauthorized = client.get(
         f"/v1/notifications/{notification_id}",

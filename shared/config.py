@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     banking_adapter_mode: str = "mock"
     event_bus_mode: str = "local"
     sqs_mode: str = "local"
+    bucket_service_url: str = "http://localhost:8001"
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
