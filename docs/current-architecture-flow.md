@@ -7,29 +7,29 @@ This diagram reflects the implemented local mock-first flow in the repository. I
 ```mermaid
 flowchart LR
     customer([Customer])
-    browser[React + TypeScript + Vite\nBrowser UI\ncustomer-001]
+    browser[React + TypeScript + Vite<br/>Browser UI<br/>customer-001]
 
     subgraph compose[Docker Compose local environment]
-        bucket[Bucket service\nFastAPI :8001\nBuckets + allocation state]
-        contribution[Contribution service\nFastAPI :8002\nMock contribution records]
-        withdrawal[Withdrawal service\nFastAPI :8003\nMock withdrawal records]
-        recurring[Recurring contribution service\nFastAPI :8004\nMock schedules]
-        notification[Notification service\nFastAPI :8005\nIn-memory notifications]
-        postgres[(PostgreSQL 16\nsavings_bucket\n:5432)]
+        bucket[Bucket service<br/>FastAPI :8001<br/>Buckets + allocation state]
+        contribution[Contribution service<br/>FastAPI :8002<br/>Mock contribution records]
+        withdrawal[Withdrawal service<br/>FastAPI :8003<br/>Mock withdrawal records]
+        recurring[Recurring contribution service<br/>FastAPI :8004<br/>Mock schedules]
+        notification[Notification service<br/>FastAPI :8005<br/>In-memory notifications]
+        postgres[(PostgreSQL 16<br/>savings_bucket<br/>:5432)]
     end
 
     customer --> browser
-    browser -->|GET/POST /v1/buckets\nGET transactions| bucket
-    browser -->|POST/GET /v1/buckets/{id}/contributions| contribution
-    browser -->|POST/GET /v1/buckets/{id}/withdrawals| withdrawal
+    browser -->|GET/POST /v1/buckets<br/>GET transactions| bucket
+    browser -->|POST/GET /v1/buckets/:bucket_id/contributions| contribution
+    browser -->|POST/GET /v1/buckets/:bucket_id/withdrawals| withdrawal
     browser -->|POST/GET/PATCH recurring-contributions| recurring
     browser -->|GET/DELETE notifications\nPOST internal notification| notification
 
-    contribution -.->|POST /internal/buckets/{id}/transactions| bucket
-    withdrawal -.->|POST /internal/buckets/{id}/transactions| bucket
+    contribution -.->|POST /internal/buckets/:bucket_id/transactions| bucket
+    withdrawal -.->|POST /internal/buckets/:bucket_id/transactions| bucket
 
-    bucket -->|PostgresBucketStore\nwhen DATABASE_URL is configured| postgres
-    bucket -.->|InMemoryBucketStore\nwhen DATABASE_URL is absent| bucketMemory[(Process memory)]
+    bucket -->|PostgresBucketStore<br/>when DATABASE_URL is configured| postgres
+    bucket -.->|InMemoryBucketStore<br/>when DATABASE_URL is absent| bucketMemory[(Process memory)]
     contribution --> contributionMemory[(Process memory)]
     withdrawal --> withdrawalMemory[(Process memory)]
     recurring --> recurringMemory[(Process memory)]
