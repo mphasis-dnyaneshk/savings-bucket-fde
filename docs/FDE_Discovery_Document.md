@@ -276,5 +276,3 @@ flowchart LR
     deliver --> learn[Measure outcomes and learn]
     learn --> explore
 ```
-
-The next product-definition step is to validate the hypotheses, prioritize the customer outcomes, and use the findings to finalize MVP requirements.
