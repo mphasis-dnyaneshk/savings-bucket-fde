@@ -22,7 +22,7 @@ Explore and define a digital savings-bucket experience that enables customers to
 ```mermaid
 flowchart LR
     challenge[One overall savings balance]
-    discovery[Explore customer goals and needs]
+    discovery[Explore customer goals & need ]
     concept[Goal-based savings buckets]
     value[Clearer allocation and progress]
     challenge --> discovery --> concept --> value
