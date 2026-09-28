@@ -1,6 +1,6 @@
 # Savings Bucket: Current Architecture and User Flow
 
-This diagram reflects the implemented local mock-first flow in the repository. It does not represent the planned production API Gateway, OIDC/JWT, banking, EventBridge, or SQS components.
+This diagram reflects the implemented local mock-first flow in the repository. It does not represent the planned production API Gateway, OIDC/JWT, banking, EventBridge, or SQS components. In the product model, one authoritative customer funding account backs logical goal allocations; buckets are not separate bank accounts. The local mock environment does not connect to a real account or move real money.
 
 ## Current local architecture
 

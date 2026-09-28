@@ -83,7 +83,7 @@ savings-bucket/
 
 The capstone frontend will use **React + TypeScript + Vite**. It will provide the responsive Savings Bucket web experience described in the UX document: dashboard, bucket detail, create bucket, add money, withdraw, transactions, and recurring contribution screens.
 
-The frontend will call the FastAPI services through the documented API boundary and use local mock data or mock service responses during development. It must remain responsive, keyboard accessible, screen-reader friendly, and must not imply that a bucket is a separate bank account.
+The frontend will call the FastAPI services through the documented API boundary and use local mock data or mock service responses during development. It must remain responsive, keyboard accessible, and screen-reader friendly. For the Savings Bucket product flow, one authoritative customer funding account backs multiple logical goal allocations; a bucket is not a separate bank account. The local mock environment does not connect to a real banking account or move real money.
 
 ## Start the frontend
 

@@ -15,6 +15,8 @@ Savings Bucket explores how a digital banking platform can help customers organi
 
 The concept is to let customers create multiple goal-based buckets, allocate savings to them, track progress, and optionally automate contributions.
 
+> **Product direction clarified after initial discovery:** For the Savings Bucket product flow, one authoritative customer funding account is used. Each bucket is a logical allocation against that account, not a separate bank account per goal. The account balance and actual money movement remain authoritative in the banking account/transaction capability. This is a later product/architecture clarification, not a claim that the initial discovery validated the account model.
+
 ### Discovery Objective
 
 Explore and define a digital savings-bucket experience that enables customers to create, organize, track, and contribute toward multiple financial goals within their banking experience.

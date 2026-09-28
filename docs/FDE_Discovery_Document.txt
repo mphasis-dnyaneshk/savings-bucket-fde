@@ -10,6 +10,7 @@ ________________________________________
 The Savings Bucket initiative aims to explore how a digital banking platform can help customers organize their savings around specific financial goals.
 Customers may have multiple financial objectives such as building an emergency fund, planning a vacation, purchasing a vehicle, paying education expenses, or saving for a home. A traditional savings account generally provides a single balance and does not provide sufficient visibility or granularity into how much of that balance is intended for each goal.
 The proposed concept is a Savings Bucket capability that allows customers to create multiple goal-based savings buckets, allocate money toward each goal, track progress, and optionally automate recurring contributions.
+Product direction clarified after initial discovery: For the Savings Bucket product flow, one authoritative customer funding account is used. Each bucket is a logical allocation against that account, not a separate bank account per goal. The account balance and actual money movement remain authoritative in the banking account/transaction capability. This is a later product/architecture clarification, not a claim that the initial discovery validated the account model.
 Objective:
 Explore and define a digital savings-bucket experience that enables customers to create, organize, track and contribute toward multiple financial goals within their banking experience.
 

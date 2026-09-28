@@ -273,6 +273,10 @@ Progress percentage = min(current saved amount / target amount * 100, 100)
 
 The balance, transaction history, and progress must remain consistent after every successful contribution or withdrawal.
 
+### Account Model
+
+For the Savings Bucket product flow, a customer uses one authoritative funding account. Buckets are logical allocations against that account, not separate bank accounts. The banking account/transaction capability remains authoritative for the actual account balance and money movement; a bucket balance represents the amount assigned to that goal.
+
 ### Money Movement Rules
 
 - A customer selects the target bucket before adding or withdrawing money.
@@ -369,7 +373,8 @@ The product should help customers:
 ```mermaid
 flowchart TD
     product[Savings Bucket]
-    product --> account[Customer banking account]
+    product --> account[One authoritative customer funding account]
+    account --> allocation[Logical bucket allocations, not separate accounts]
     product --> balance[Existing savings balance]
     product --> processing[Transaction processing capability]
     product --> recurring[Recurring payment capability]
@@ -386,12 +391,11 @@ flowchart TD
 | 4 | What happens when a customer withdraws money from a bucket? |
 | 5 | Can a customer pause or modify recurring contributions? |
 | 6 | What happens when the target date is reached? |
-| 7 | Can a customer contribute to multiple buckets from the same account? |
-| 8 | Should customers receive notifications about goal progress? |
-| 9 | Should the system automatically suggest target amounts? |
-| 10 | How should personalized recommendations be presented? |
-| 11 | Should customers be able to mark a goal as completed? |
-| 12 | What happens to money after a goal is completed? |
+| 7 | Should customers receive notifications about goal progress? |
+| 8 | Should the system automatically suggest target amounts? |
+| 9 | How should personalized recommendations be presented? |
+| 10 | Should customers be able to mark a goal as completed? |
+| 11 | What happens to money after a goal is completed? |
 
 ## 17. Risks And Mitigations
 
