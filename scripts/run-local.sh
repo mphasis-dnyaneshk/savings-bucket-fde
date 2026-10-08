@@ -24,7 +24,9 @@ if ! psql -h localhost -U dnyanesh_kudale -d postgres -tAc "SELECT 1 FROM pg_dat
   createdb -h localhost -U dnyanesh_kudale savings_bucket
 fi
 
-psql -h localhost -U dnyanesh_kudale -d savings_bucket -f db/migrations/001_foundation.sql
+for migration in db/migrations/*.sql; do
+  psql -h localhost -U dnyanesh_kudale -d savings_bucket -f "$migration"
+done
 
 echo "Foundation ready. Start a service with:"
 echo "FDE_DB_PASS is configured for local PostgreSQL at localhost:5432."

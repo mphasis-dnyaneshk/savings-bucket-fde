@@ -12,7 +12,6 @@ CREATE TABLE IF NOT EXISTS buckets (
 );
 
 CREATE INDEX IF NOT EXISTS ix_buckets_customer_id ON buckets (customer_id);
-
 CREATE TABLE IF NOT EXISTS bucket_transactions (
     transaction_id UUID PRIMARY KEY,
     bucket_id UUID NOT NULL REFERENCES buckets(bucket_id),

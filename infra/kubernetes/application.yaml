@@ -1,0 +1,368 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: savings-bucket
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: savings-bucket
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      containers:
+        - name: frontend
+          image: ${ECR_FRONTEND}:${IMAGE_TAG}
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 80
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+  namespace: savings-bucket
+spec:
+  type: NodePort
+  selector:
+    app: frontend
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+      nodePort: 30080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bucket-service
+  namespace: savings-bucket
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: bucket-service
+  template:
+    metadata:
+      labels:
+        app: bucket-service
+    spec:
+      containers:
+        - name: bucket-service
+          image: ${ECR_BUCKET_SERVICE}:${IMAGE_TAG}
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8000
+          env:
+            - name: SERVICE_NAME
+              value: bucket-service
+            - name: APP_ENV
+              value: aws-capstone
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: savings-bucket-database
+                  key: DATABASE_URL
+            - name: BANKING_ADAPTER_MODE
+              value: mock
+            - name: EVENT_BUS_MODE
+              value: local
+            - name: SQS_MODE
+              value: local
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: http
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: http
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: bucket-service
+  namespace: savings-bucket
+spec:
+  type: NodePort
+  selector:
+    app: bucket-service
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http
+      nodePort: 30081
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: contribution-service
+  namespace: savings-bucket
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: contribution-service
+  template:
+    metadata:
+      labels:
+        app: contribution-service
+    spec:
+      containers:
+        - name: contribution-service
+          image: ${ECR_CONTRIBUTION_SERVICE}:${IMAGE_TAG}
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8000
+          env:
+            - name: SERVICE_NAME
+              value: contribution-service
+            - name: APP_ENV
+              value: aws-capstone
+            - name: BANKING_ADAPTER_MODE
+              value: mock
+            - name: BUCKET_SERVICE_URL
+              value: http://bucket-service:8000
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: http
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: http
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: contribution-service
+  namespace: savings-bucket
+spec:
+  type: NodePort
+  selector:
+    app: contribution-service
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http
+      nodePort: 30082
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: withdrawal-service
+  namespace: savings-bucket
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: withdrawal-service
+  template:
+    metadata:
+      labels:
+        app: withdrawal-service
+    spec:
+      containers:
+        - name: withdrawal-service
+          image: ${ECR_WITHDRAWAL_SERVICE}:${IMAGE_TAG}
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8000
+          env:
+            - name: SERVICE_NAME
+              value: withdrawal-service
+            - name: APP_ENV
+              value: aws-capstone
+            - name: BANKING_ADAPTER_MODE
+              value: mock
+            - name: BUCKET_SERVICE_URL
+              value: http://bucket-service:8000
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: http
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: http
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: withdrawal-service
+  namespace: savings-bucket
+spec:
+  type: NodePort
+  selector:
+    app: withdrawal-service
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http
+      nodePort: 30083
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: recurring-contribution-service
+  namespace: savings-bucket
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: recurring-contribution-service
+  template:
+    metadata:
+      labels:
+        app: recurring-contribution-service
+    spec:
+      containers:
+        - name: recurring-contribution-service
+          image: ${ECR_RECURRING_CONTRIBUTION_SERVICE}:${IMAGE_TAG}
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8000
+          env:
+            - name: SERVICE_NAME
+              value: recurring-contribution-service
+            - name: APP_ENV
+              value: aws-capstone
+            - name: BANKING_ADAPTER_MODE
+              value: mock
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: http
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: http
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: recurring-contribution-service
+  namespace: savings-bucket
+spec:
+  type: NodePort
+  selector:
+    app: recurring-contribution-service
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http
+      nodePort: 30084
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notification-service
+  namespace: savings-bucket
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: notification-service
+  template:
+    metadata:
+      labels:
+        app: notification-service
+    spec:
+      containers:
+        - name: notification-service
+          image: ${ECR_NOTIFICATION_SERVICE}:${IMAGE_TAG}
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8000
+          env:
+            - name: SERVICE_NAME
+              value: notification-service
+            - name: APP_ENV
+              value: aws-capstone
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: http
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: http
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: notification-service
+  namespace: savings-bucket
+spec:
+  type: NodePort
+  selector:
+    app: notification-service
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http
+      nodePort: 30085

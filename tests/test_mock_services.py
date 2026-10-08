@@ -8,11 +8,67 @@ from services.recurring_contribution_service.main import app as recurring_app
 from services.withdrawal_service.main import app as withdrawal_app
 
 
-def test_contribution_is_idempotent_and_customer_scoped() -> None:
+def test_contribution_replay_retries_bucket_apply_and_keeps_transition_one_time(
+    monkeypatch,
+) -> None:
+    bucket_responses = iter(
+        [
+            {
+                "goal_reached_now": True,
+                "current_balance": "125.00",
+                "target_amount": "100.00",
+                "remaining_amount": "0.00",
+                "progress_percentage": "100.00",
+                "status": "REACHED",
+            },
+            {
+                "goal_reached_now": False,
+                "current_balance": "125.00",
+                "target_amount": "100.00",
+                "remaining_amount": "0.00",
+                "progress_percentage": "100.00",
+                "status": "REACHED",
+            },
+        ]
+    )
+    bucket_apply_calls = 0
+    allow_over_target_values = []
+
+    class MockResponse:
+        status_code = 200
+
+        def __init__(self, body):
+            self.body = body
+
+        def json(self):
+            return self.body
+
+    class MockAsyncClient:
+        def __init__(self, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return None
+
+        async def post(self, *args, **kwargs):
+            nonlocal bucket_apply_calls
+            bucket_apply_calls += 1
+            allow_over_target_values.append(kwargs["json"]["allow_over_target"])
+            return MockResponse(next(bucket_responses))
+
+    monkeypatch.setattr(
+        "services.contribution_service.main.httpx.AsyncClient", MockAsyncClient
+    )
     client = TestClient(contribution_app)
     bucket_id = uuid4()
-    headers = {"X-Customer-ID": "customer-1", "Idempotency-Key": "contribution-1"}
-    payload = {"amount": "25.00"}
+    headers = {
+        "X-Customer-ID": f"customer-{uuid4()}",
+        "Idempotency-Key": f"contribution-{uuid4()}",
+    }
+    payload = {"amount": "125.00", "allow_over_target": True}
 
     first = client.post(
         f"/v1/buckets/{bucket_id}/contributions", headers=headers, json=payload
@@ -24,11 +80,16 @@ def test_contribution_is_idempotent_and_customer_scoped() -> None:
     assert first.status_code == 201
     assert replay.status_code == 201
     assert replay.json()["contribution_id"] == first.json()["contribution_id"]
+    assert first.json()["goal_reached_now"] is True
+    assert replay.json()["goal_reached_now"] is False
+    assert replay.json()["bucket_current_balance"] == "125.00"
+    assert bucket_apply_calls == 2
+    assert allow_over_target_values == [True, True]
 
     conflicting = client.post(
         f"/v1/buckets/{bucket_id}/contributions",
         headers=headers,
-        json={"amount": "30.00"},
+        json={"amount": "130.00"},
     )
     assert conflicting.status_code == 409
 
@@ -141,3 +202,45 @@ def test_notification_delivery_and_customer_lookup() -> None:
         headers={"X-Customer-ID": "customer-2"},
     )
     assert unauthorized.status_code == 404
+
+
+def test_clear_all_notifications_is_customer_scoped() -> None:
+    client = TestClient(notification_app)
+    customer_id = f"clear-{uuid4()}"
+    other_customer_id = f"other-{uuid4()}"
+
+    for event_type in ("ContributionCompleted", "GoalReached"):
+        response = client.post(
+            "/internal/notifications",
+            json={
+                "customer_id": customer_id,
+                "event_type": event_type,
+                "message": "Test notification.",
+            },
+        )
+        assert response.status_code == 201
+
+    other_notification = client.post(
+        "/internal/notifications",
+        json={
+            "customer_id": other_customer_id,
+            "event_type": "GoalReached",
+            "message": "Another customer's notification.",
+        },
+    )
+    assert other_notification.status_code == 201
+
+    cleared = client.delete(
+        "/v1/notifications",
+        headers={"X-Customer-ID": customer_id},
+    )
+    assert cleared.status_code == 200
+    assert cleared.json()["deleted_count"] == 2
+    assert (
+        client.get("/v1/notifications", headers={"X-Customer-ID": customer_id}).json()
+        == []
+    )
+    remaining = client.get(
+        "/v1/notifications", headers={"X-Customer-ID": other_customer_id}
+    )
+    assert len(remaining.json()) == 1

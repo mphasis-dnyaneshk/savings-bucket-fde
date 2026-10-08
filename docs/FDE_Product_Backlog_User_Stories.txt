@@ -435,7 +435,7 @@ Recovery/DR	Backup/restore/reconciliation	SB-028	Recovery demonstrated
 Decision	Current Position	Backlog Impact	Status
 Bucket model	Logical allocation, not separate account	Allocation updates gated by banking outcome	Decided
 Money source of truth	Banking account/transaction capability	Contribution/withdrawal depend on adapter	Decided
-Runtime	ECS Fargate	No Kubernetes-specific implementation required	Decided
+Runtime	Amazon EKS	Kubernetes Deployments run on EKS managed node groups	Decided
 Identity	OAuth 2.0/OIDC + JWT; Cognito option	Auth/authorization stories	Decided
 Recurring model	Event-driven EventBridge/SQS	Schedule and execution stories separated	Decided
 AI role	Advisory only	Future stories cannot move money	Decided
@@ -462,7 +462,7 @@ Duplicate events	SB-019–020, SB-027	Event IDs, unique constraints, idempotent 
 Incorrect allocation	SB-010, SB-014, SB-027	Single owner, ACID, locking/versioning	Concurrency
 Service proliferation	All	Domain-oriented boundaries; avoid CRUD microservices	Architecture review
 AI privacy/model risk	SB-029–031	Governed data, advisory-only, controlled rollout	Privacy/model evaluation
-Operational complexity	Platform	Managed AWS services and ECS Fargate	Operational readiness
+Operational complexity	Platform	Managed EKS control plane with managed EC2 node groups	Operational readiness
 15. Capstone Completion Criteria
 •	All P0 MVP stories pass acceptance criteria.
 •	Customer can create and view savings goals.

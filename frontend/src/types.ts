@@ -1,4 +1,4 @@
-export type View = "overview" | "bucket" | "activity";
+export type View = "overview" | "goals" | "bucket" | "activity" | "archived";
 
 export interface Bucket {
   bucket_id: string;
@@ -12,6 +12,8 @@ export interface Bucket {
   status: string;
   created_at: string;
   updated_at: string;
+  reached_at: string | null;
+  archived_at: string | null;
 }
 
 export interface Transaction {
@@ -33,6 +35,12 @@ export interface Contribution {
   idempotency_key: string;
   external_reference: string;
   created_at: string;
+  goal_reached_now: boolean;
+  bucket_current_balance: string | null;
+  bucket_target_amount: string | null;
+  bucket_remaining_amount: string | null;
+  bucket_progress_percentage: string | null;
+  bucket_status: string | null;
 }
 
 export interface Withdrawal {

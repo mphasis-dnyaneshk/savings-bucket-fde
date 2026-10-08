@@ -1,0 +1,32 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: savings-bucket-migration
+  namespace: savings-bucket
+spec:
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 86400
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: migrate
+          image: postgres:16-alpine
+          command:
+            - sh
+            - -c
+            - psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f /migration/001_foundation.sql -f /migration/002_bucket_archive.sql
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: savings-bucket-database
+                  key: DATABASE_URL
+          volumeMounts:
+            - name: migration
+              mountPath: /migration
+              readOnly: true
+      volumes:
+        - name: migration
+          configMap:
+            name: savings-bucket-migration

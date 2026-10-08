@@ -37,18 +37,36 @@ module "messaging" {
 }
 
 module "platform" {
-  source              = "./modules/platform"
-  project_name        = var.project_name
-  environment         = var.environment
-  vpc_id              = module.network.vpc_id
-  public_subnet_ids   = module.network.public_subnet_ids
-  alb_sg_id           = module.network.alb_sg_id
-  service_sg_id       = module.network.service_sg_id
-  execution_role_arn  = module.iam.execution_role_arn
-  task_role_arn       = module.iam.task_role_arn
-  ecr_repository_urls = module.registry.repository_urls
-  database_url        = "postgresql://${var.db_username}:${var.db_password}@${module.database.address}:5432/savings_bucket"
-  recurring_queue_arn = module.messaging.recurring_queue_arn
-  recurring_queue_url = module.messaging.recurring_queue_url
-  frontend_api_url    = "http://${module.platform.alb_dns_name}"
+  source                   = "./modules/platform"
+  project_name             = var.project_name
+  environment              = var.environment
+  vpc_id                   = module.network.vpc_id
+  public_subnet_ids        = module.network.public_subnet_ids
+  alb_sg_id                = module.network.alb_sg_id
+  cluster_role_arn         = module.iam.cluster_role_arn
+  node_role_arn            = module.iam.node_role_arn
+  ecr_repository_urls      = module.registry.repository_urls
+  eks_public_access_cidrs = var.eks_public_access_cidrs
+
+  depends_on = [module.iam]
+}
+
+resource "aws_security_group_rule" "eks_nodes_from_alb" {
+  type                     = "ingress"
+  from_port                = 30080
+  to_port                  = 30085
+  protocol                 = "tcp"
+  security_group_id        = module.platform.cluster_security_group_id
+  source_security_group_id = module.network.alb_sg_id
+  description              = "Allow ALB traffic to the application NodePort services."
+}
+
+resource "aws_security_group_rule" "database_from_eks" {
+  type                     = "ingress"
+  from_port                = 5432
+  to_port                  = 5432
+  protocol                 = "tcp"
+  security_group_id        = module.network.database_sg_id
+  source_security_group_id = module.platform.cluster_security_group_id
+  description              = "Allow EKS workloads to connect to PostgreSQL."
 }

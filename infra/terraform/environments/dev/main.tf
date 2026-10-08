@@ -10,6 +10,7 @@ module "capstone" {
   aws_region  = var.aws_region
   environment = "dev"
   db_password = var.db_password
+  eks_public_access_cidrs = var.eks_public_access_cidrs
 }
 
 variable "aws_region" {
@@ -20,6 +21,11 @@ variable "aws_region" {
 variable "db_password" {
   type      = string
   sensitive = true
+}
+
+variable "eks_public_access_cidrs" {
+  type        = list(string)
+  description = "Your public IP CIDR allowed to access the EKS Kubernetes API endpoint."
 }
 
 output "frontend_url" { value = module.capstone.frontend_url }

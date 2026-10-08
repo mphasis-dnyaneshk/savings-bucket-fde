@@ -35,15 +35,26 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
 export const api = {
   customerId,
   listBuckets: () => request<Bucket[]>(`${bucketApi}/v1/buckets`),
+  listArchivedBuckets: () => request<Bucket[]>(`${bucketApi}/v1/buckets/archived`),
+  getBucket: (bucketId: string) => request<Bucket>(`${bucketApi}/v1/buckets/${bucketId}`),
   createBucket: (payload: { name: string; target_amount: string; target_date: string | null }) =>
     request<Bucket>(`${bucketApi}/v1/buckets`, { method: "POST", body: JSON.stringify(payload) }),
+  updateBucketTarget: (bucketId: string, targetAmount: string) =>
+    request<Bucket>(`${bucketApi}/v1/buckets/${bucketId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ target_amount: targetAmount }),
+    }),
+  archiveBucket: (bucketId: string) =>
+    request<Bucket>(`${bucketApi}/v1/buckets/${bucketId}/archive`, { method: "POST" }),
+  restoreBucket: (bucketId: string) =>
+    request<Bucket>(`${bucketApi}/v1/buckets/${bucketId}/restore`, { method: "POST" }),
   getTransactions: (bucketId: string) =>
     request<Transaction[]>(`${bucketApi}/v1/buckets/${bucketId}/transactions`),
-  contribute: (bucketId: string, amount: string) =>
+  contribute: (bucketId: string, amount: string, allowOverTarget = false) =>
     request<Contribution>(`${contributionApi}/v1/buckets/${bucketId}/contributions`, {
       method: "POST",
       headers: { "Idempotency-Key": `contribution-${crypto.randomUUID()}` },
-      body: JSON.stringify({ amount }),
+      body: JSON.stringify({ amount, allow_over_target: allowOverTarget }),
     }),
   withdraw: (bucketId: string, amount: string) =>
     request<Withdrawal>(`${withdrawalApi}/v1/buckets/${bucketId}/withdrawals`, {
@@ -70,6 +81,7 @@ export const api = {
       body: JSON.stringify({ ...payload, customer_id: customerId }),
     }),
   listNotifications: () => request<Notification[]>(`${notificationApi}/v1/notifications`),
+  clearNotifications: () => request<{ deleted_count: number }>(`${notificationApi}/v1/notifications`, { method: "DELETE" }),
   dismissNotification: (notificationId: string) =>
     request<Notification>(`${notificationApi}/v1/notifications/${notificationId}`, {
       method: "DELETE",

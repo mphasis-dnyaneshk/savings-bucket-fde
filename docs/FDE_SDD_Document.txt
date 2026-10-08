@@ -9,18 +9,18 @@ Source	Savings Bucket Product Requirements Document
 
 1. Document Overview
 The MVP covers bucket creation, goal definition, contributions, withdrawals, balance/progress visibility, transaction history, and recurring contributions.
-Final architecture decisions: AWS, Python/FastAPI, PostgreSQL, domain-oriented microservices, logical bucket allocation, event-driven recurring contributions, OAuth 2.0/OIDC with JWT, API Gateway + ECS/Fargate, and future AI isolated from financial transaction execution.
+Final architecture decisions: AWS, Python/FastAPI, PostgreSQL, domain-oriented microservices, logical bucket allocation, event-driven recurring contributions, OAuth 2.0/OIDC with JWT, Amazon EKS, and future AI isolated from financial transaction execution.
 2. Architecture Goals
 •	Goal-oriented savings without a separate bank account per bucket.
 •	Keep actual funds authoritative in the banking account/transaction capability.
 •	Safe, auditable contributions and withdrawals with idempotency and explicit states.
-•	Independent service scaling without Kubernetes as a runtime dependency.
+•	Independent service scaling using Kubernetes Deployments on Amazon EKS.
 •	Asynchronous, resilient recurring contributions.
 •	Future AI decoupled from money movement.
 3. Architecture Principles
 •	Domain-oriented service boundaries, not a service per CRUD operation.
-•	API Gateway is the north-south API boundary.
-•	ECS Fargate is the runtime.
+•	The ALB is the initial north-south API boundary; API Gateway is a future enhancement.
+•	Amazon EKS managed node groups run the containerized services.
 •	RDS PostgreSQL provides ACID transactional state.
 •	Use events for asynchronous workflows and controlled commands for money movement.
 •	Transactional outbox plus durable messaging.
@@ -45,10 +45,10 @@ Final architecture decisions: AWS, Python/FastAPI, PostgreSQL, domain-oriented m
 •	Separate bank account per bucket
 •	AI-controlled money movement
 •	Investment advice
-•	Kubernetes/EKS as a mandatory runtime
+•	ECS/Fargate as the application runtime
 5. Non-Functional Requirements – Initial Design Targets
 Area	Target	Response
-Availability	99.9%	Multi-AZ ECS/RDS
+Availability	99.9%	Multi-AZ EKS; production RDS Multi-AZ
 Read performance	p95 ≤ 500 ms	Indexes, pagination, stateless services
 Transaction orchestration	p95 ≤ 2 s excluding banking dependency	Explicit PENDING state
 Reliability	No duplicate financial processing	Idempotency + unique constraints
@@ -57,12 +57,12 @@ Security	TLS, encryption, least privilege	JWT, IAM, KMS, Secrets Manager
 Auditability	Traceable financial state changes	Transaction/audit records + correlation IDs
 Targets are capstone design targets and require validation through testing.
 6. High-Level Architecture
-Customer → React + TypeScript + Vite web application → Amazon API Gateway → OAuth 2.0/OIDC JWT authorization → ECS/Fargate FastAPI microservices → RDS PostgreSQL / EventBridge / SQS → Banking Account & Transaction Service. Operational layer uses CloudWatch, distributed tracing and audit records.
+Customer → React + TypeScript + Vite web application → Application Load Balancer → EKS Kubernetes Services and FastAPI Deployments → RDS PostgreSQL / EventBridge / SQS → Banking Account & Transaction Service. Operational layer uses CloudWatch, distributed tracing and audit records.
 6.1 AWS Components
 Layer	Technology	Purpose
-API	Amazon API Gateway	Routing, throttling, JWT authorization
+API	Application Load Balancer	Public entry point and path-based routing; API Gateway remains a future option for throttling and JWT authorization
 Identity	OAuth 2.0 / OIDC; Cognito as capstone IdP option	Authentication/token validation
-Compute	Amazon ECS Fargate	FastAPI microservices
+Compute	Amazon EKS managed node groups	Kubernetes Deployments for frontend and FastAPI microservices
 Database	Amazon RDS PostgreSQL	Transactional state
 Events	Amazon EventBridge	Domain-event routing
 Queues	Amazon SQS	Durable async processing/retries
@@ -72,7 +72,7 @@ Observability	CloudWatch + tracing	Logs, metrics, alarms, traces
 Network	VPC/private subnets/security groups	Isolation and connectivity
 
 6.2 Architecture Diagram
-Browser/React Web UI → API Gateway + JWT → ECS/Fargate: Bucket | Contribution | Withdrawal | Recurring Services → RDS PostgreSQL and EventBridge/SQS → Banking Transaction Service (authoritative money movement).
+Browser/React Web UI → ALB → EKS NodePort Services: Frontend | Bucket | Contribution | Withdrawal | Recurring | Notification → RDS PostgreSQL and EventBridge/SQS → Banking Transaction Service (authoritative money movement).
  
 7. Application Architecture
  
@@ -170,8 +170,8 @@ Unauthorized access	403 without sensitive details.
 •	OAuth 2.0/OIDC + JWT authentication.
 •	API Gateway validates JWT signature, issuer, audience and expiry.
 •	Every service authorizes resource ownership.
-•	ECS task roles use least privilege.
-•	ECS/RDS use private subnets and restrictive security groups.
+•	EKS cluster and node roles use least privilege; application AWS access uses workload identity when enabled.
+•	EKS/RDS use private subnets and restrictive security groups in production.
 •	TLS and KMS-backed encryption at rest.
 •	Secrets Manager for credentials.
 •	No credentials/tokens/unnecessary sensitive data in logs.
@@ -202,7 +202,7 @@ Azure DevOps or GitHub Actions can implement this flow without changing the runt
 16. Disaster Recovery & Resilience
 •	RDS Multi-AZ in production.
 •	Automated backups; cross-region backup/replication can support DR.
-•	Stateless ECS services can be recreated in a recovery environment.
+•	Stateless EKS Deployments can be recreated in a recovery environment.
 •	Infrastructure as code enables repeatable recovery.
 •	Queues, explicit states and reconciliation protect workflow consistency.
 •	DR tests validate financial-state consistency as well as availability.
@@ -217,7 +217,7 @@ Approved Financial Signals (income / spending / savings / goals / target dates) 
 18. Architecture Decision Records
 ADR	Decision	Rationale
 ADR-001	Domain-oriented microservices	Clear domain boundaries without CRUD-per-service anti-pattern.
-ADR-002	ECS Fargate instead of Kubernetes	Lower operational overhead with container scaling.
+ADR-002	Amazon EKS for container orchestration	The target deployment platform is Kubernetes; accept the additional cluster and worker-node operations.
 ADR-003	RDS PostgreSQL	ACID transactions, constraints and mature relational capabilities.
 ADR-004	Logical bucket allocation	Goal-level tracking without a separate bank account per goal.
 ADR-005	Event-driven recurring contributions	Decouples scheduling/execution and supports durable retry.
@@ -268,10 +268,10 @@ Duplicate event processing	Event IDs, unique constraints and idempotent consumer
 Incorrect bucket balance	Single bucket owner, ACID local updates and outcome gating
 Service proliferation	Domain boundaries; combine simple reads where justified
 AI privacy/model risk	Read-only architecture, governance and controlled rollout
-Operational complexity	Managed AWS services and ECS Fargate instead of Kubernetes
+Operational complexity	Managed EKS control plane and node groups; document cluster operations and cost
 
 23. Implementation Roadmap
-34.	Foundation: Terraform, VPC, RDS, ECS baseline, API Gateway and identity.
+34.	Foundation: Terraform, VPC, RDS, EKS baseline, ALB and identity.
 35.	Bucket MVP: schema, create/list/detail APIs and progress.
 36.	Money movement: contribution/withdrawal services, banking adapter, idempotency and reconciliation.
 37.	History: transaction records and pagination.
@@ -280,7 +280,7 @@ Operational complexity	Managed AWS services and ECS Fargate instead of Kubernete
 40.	Validation: functional, security, concurrency, failure and performance testing.
 41.	Future AI: data governance → recommendation service → evaluation → controlled rollout.
 24. Final Architecture Summary
-The final architecture uses AWS-managed infrastructure with FastAPI microservices on ECS Fargate, PostgreSQL on RDS, API Gateway, OAuth 2.0/OIDC with JWT, and EventBridge/SQS for asynchronous recurring-contribution processing.
+The final architecture uses AWS-managed infrastructure with Kubernetes workloads on Amazon EKS, PostgreSQL on RDS, an ALB, OAuth 2.0/OIDC with JWT, and EventBridge/SQS for asynchronous recurring-contribution processing.
 Savings Buckets are logical allocations against an authoritative customer account. Financial movement is separated from bucket-domain state, with idempotency, explicit transaction states, transactional outbox and reconciliation providing distributed consistency.
 Future AI remains advisory and isolated from core money movement. This provides a concrete, explainable and implementation-ready architecture for the FDE capstone.
 Appendix A – MVP End-to-End Flow

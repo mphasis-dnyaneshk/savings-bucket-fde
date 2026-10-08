@@ -7,10 +7,12 @@ from shared.app import create_app
 from shared.auth import require_customer_id
 from shared.config import get_settings
 from services.bucket_service.schemas import (
+    ApplyTransactionResponse,
     BucketResponse,
     CreateBucketRequest,
     ApplyTransactionRequest,
     TransactionResponse,
+    UpdateBucketTargetRequest,
 )
 from services.bucket_service.store import (
     BucketRecord,
@@ -39,9 +41,19 @@ def to_bucket_response(bucket: BucketRecord) -> BucketResponse:
         remaining_amount=remaining,
         progress_percentage=progress.quantize(Decimal("0.01")),
         target_date=bucket.target_date,
-        status=bucket.status,
+        status=(
+            "ARCHIVED"
+            if bucket.status == "ARCHIVED"
+            else (
+                "REACHED"
+                if bucket.current_balance >= bucket.target_amount
+                else "ACTIVE"
+            )
+        ),
         created_at=bucket.created_at,
         updated_at=bucket.updated_at,
+        reached_at=bucket.reached_at,
+        archived_at=bucket.archived_at,
     )
 
 
@@ -64,9 +76,9 @@ def register_routes(app: FastAPI) -> None:
         request: ApplyTransactionRequest,
         customer_id: str = Depends(require_customer_id),
         store: BucketStore = Depends(lambda: get_bucket_store(app)),
-    ) -> BucketResponse:
+    ) -> ApplyTransactionResponse:
         try:
-            bucket = store.apply_transaction(
+            result = store.apply_transaction(
                 customer_id,
                 bucket_id,
                 request.type,
@@ -74,12 +86,16 @@ def register_routes(app: FastAPI) -> None:
                 request.status,
                 request.external_reference,
                 request.idempotency_key,
+                request.allow_over_target,
             )
         except LookupError as error:
             raise HTTPException(status_code=404, detail=str(error))
         except ValueError as error:
             raise HTTPException(status_code=422, detail=str(error))
-        return to_bucket_response(bucket)
+        return ApplyTransactionResponse(
+            **to_bucket_response(result.bucket).model_dump(),
+            goal_reached_now=result.goal_reached_now,
+        )
 
     @app.get("/v1/buckets")
     async def list_buckets(
@@ -90,18 +106,31 @@ def register_routes(app: FastAPI) -> None:
             to_bucket_response(bucket) for bucket in store.list_buckets(customer_id)
         ]
 
+    @app.get("/v1/buckets/archived")
+    async def list_archived_buckets(
+        customer_id: str = Depends(require_customer_id),
+        store: BucketStore = Depends(lambda: get_bucket_store(app)),
+    ) -> list[BucketResponse]:
+        return [
+            to_bucket_response(bucket)
+            for bucket in store.list_archived_buckets(customer_id)
+        ]
+
     @app.post("/v1/buckets", status_code=201)
     async def create_bucket(
         request: CreateBucketRequest,
         customer_id: str = Depends(require_customer_id),
         store: BucketStore = Depends(lambda: get_bucket_store(app)),
     ) -> BucketResponse:
-        bucket = store.create_bucket(
-            customer_id=customer_id,
-            name=request.name,
-            target_amount=request.target_amount,
-            target_date=request.target_date,
-        )
+        try:
+            bucket = store.create_bucket(
+                customer_id=customer_id,
+                name=request.name,
+                target_amount=request.target_amount,
+                target_date=request.target_date,
+            )
+        except ValueError as error:
+            raise HTTPException(status_code=422, detail=str(error))
         return to_bucket_response(bucket)
 
     @app.get("/v1/buckets/{bucket_id}")
@@ -116,6 +145,51 @@ def register_routes(app: FastAPI) -> None:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Bucket not found.",
             )
+        return to_bucket_response(bucket)
+
+    @app.patch("/v1/buckets/{bucket_id}")
+    async def update_bucket_target(
+        bucket_id: UUID,
+        request: UpdateBucketTargetRequest,
+        customer_id: str = Depends(require_customer_id),
+        store: BucketStore = Depends(lambda: get_bucket_store(app)),
+    ) -> BucketResponse:
+        bucket = store.update_target_amount(
+            customer_id, bucket_id, request.target_amount
+        )
+        if bucket is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Bucket not found.",
+            )
+        return to_bucket_response(bucket)
+
+    @app.post("/v1/buckets/{bucket_id}/archive")
+    async def archive_bucket(
+        bucket_id: UUID,
+        customer_id: str = Depends(require_customer_id),
+        store: BucketStore = Depends(lambda: get_bucket_store(app)),
+    ) -> BucketResponse:
+        try:
+            bucket = store.archive_bucket(customer_id, bucket_id)
+        except ValueError as error:
+            raise HTTPException(status_code=422, detail=str(error))
+        if bucket is None:
+            raise HTTPException(status_code=404, detail="Bucket not found.")
+        return to_bucket_response(bucket)
+
+    @app.post("/v1/buckets/{bucket_id}/restore")
+    async def restore_bucket(
+        bucket_id: UUID,
+        customer_id: str = Depends(require_customer_id),
+        store: BucketStore = Depends(lambda: get_bucket_store(app)),
+    ) -> BucketResponse:
+        try:
+            bucket = store.restore_bucket(customer_id, bucket_id)
+        except ValueError as error:
+            raise HTTPException(status_code=422, detail=str(error))
+        if bucket is None:
+            raise HTTPException(status_code=404, detail="Archived bucket not found.")
         return to_bucket_response(bucket)
 
     @app.get("/v1/buckets/{bucket_id}/transactions")

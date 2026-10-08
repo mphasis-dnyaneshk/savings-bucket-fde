@@ -43,6 +43,16 @@ class MockNotificationStore:
             del self._records[notification_id]
         return record
 
+    def clear_for_customer(self, customer_id: str) -> int:
+        customer_notification_ids = [
+            notification_id
+            for notification_id, record in self._records.items()
+            if record.customer_id == customer_id
+        ]
+        for notification_id in customer_notification_ids:
+            del self._records[notification_id]
+        return len(customer_notification_ids)
+
     def list_for_customer(self, customer_id: str) -> list[NotificationRecord]:
         return sorted(
             (

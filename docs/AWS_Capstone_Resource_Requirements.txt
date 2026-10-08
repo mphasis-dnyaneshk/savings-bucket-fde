@@ -9,13 +9,13 @@ This document defines the minimum AWS resources required to run the Savings Buck
 The goal is to deploy a working demonstration of:
 
 - React + TypeScript + Vite frontend.
-- Python/FastAPI microservices running on ECS Fargate.
+- Python/FastAPI microservices running as Kubernetes Deployments on Amazon EKS.
 - PostgreSQL persistence using Amazon RDS.
 - Mock banking behavior with no production financial data.
 - Recurring-contribution workflow using EventBridge and SQS.
 - Logs, health checks, and basic operational visibility.
 
-This is a capstone deployment, not a production banking deployment. Advanced infrastructure security is deliberately deferred. That includes WAF, Shield Advanced, private ECS tasks, private API endpoints, VPC endpoints, centralized security tooling, multi-region disaster recovery, and production-grade identity integration.
+This is a capstone deployment, not a production banking deployment. Advanced infrastructure security is deliberately deferred. That includes WAF, Shield Advanced, private EKS worker nodes, restricted EKS API endpoints, VPC endpoints, centralized security tooling, multi-region disaster recovery, and production-grade identity integration.
 
 Important boundary
 ==================
@@ -27,8 +27,8 @@ Recommended capstone deployment shape
 
 Browser
   -> Application Load Balancer (public API entry point)
-    -> ECS Fargate frontend service (Nginx serving React/Vite build)
-    -> ECS Fargate backend services (FastAPI)
+    -> EKS frontend Deployment (Nginx serving React/Vite build)
+    -> EKS backend Deployments (FastAPI)
   -> RDS PostgreSQL
   -> EventBridge Scheduler/Rules -> SQS -> Recurring Contribution worker
   -> CloudWatch logs and metrics
@@ -40,26 +40,26 @@ Resource summary
 
 | Area | AWS resource | Required for first running deployment | Purpose and justification |
 | --- | --- | --- | --- |
-| Networking | Amazon VPC | Yes | Provides the network boundary for ECS, RDS, load balancing, and messaging integrations. |
-| Networking | Two public subnets in two Availability Zones | Yes, simplified capstone layout | Gives the ALB and ECS tasks reachable subnets and basic Availability Zone distribution. |
-| Networking | Internet Gateway | Yes | Allows browser traffic to reach the public ALB and allows public ECS tasks to reach AWS services when needed. |
+| Networking | Amazon VPC | Yes | Provides the network boundary for EKS, RDS, load balancing, and messaging integrations. |
+| Networking | Two public subnets in two Availability Zones | Yes, simplified capstone layout | Gives the ALB and EKS managed nodes reachable subnets and basic Availability Zone distribution. |
+| Networking | Internet Gateway | Yes | Allows browser traffic to reach the public ALB and lets public EKS nodes reach AWS services when needed. |
 | Networking | Public route table | Yes | Routes public subnet traffic through the Internet Gateway. |
-| Networking | Security groups | Yes, minimum only | Allows ALB-to-ECS and ECS-to-RDS traffic. Use only the required ports even though advanced security is deferred. |
-| Frontend | ECS Fargate frontend service | Yes | Runs the React/Vite production build in an Nginx container as a standalone service, consistent with the backend deployment model. |
-| Frontend | Amazon ECR frontend repository | Yes | Stores the frontend container image used by the ECS frontend service. |
-| Container registry | Amazon ECR backend repositories | Yes | Stores immutable container images for the FastAPI services. |
-| Compute | Amazon ECS cluster | Yes | Logical runtime boundary for the containerized services. |
-| Compute | ECS Fargate task definitions | Yes | Defines CPU, memory, image, environment variables, ports, and health checks for each service. |
-| Compute | ECS Fargate services | Yes | Keeps the bucket, contribution, withdrawal, recurring, and notification services running. |
+| Networking | Security groups | Yes, minimum only | Allows ALB-to-EKS NodePort and EKS-to-RDS traffic. Use only the required ports even though advanced security is deferred. |
+| Frontend | EKS frontend Deployment and NodePort Service | Yes | Runs the React/Vite production build in an Nginx container as a standalone Kubernetes workload. |
+| Frontend | Amazon ECR frontend repository | Yes | Stores the frontend container image used by the EKS Deployment. |
+| Container registry | Amazon ECR backend repositories | Yes | Stores versioned container images for the FastAPI services. |
+| Compute | Amazon EKS cluster | Yes | Managed Kubernetes control plane for the containerized application. |
+| Compute | EKS managed node group | Yes | Runs Kubernetes pods on EC2 worker nodes across two Availability Zones. |
+| Compute | Kubernetes Deployments and NodePort Services | Yes | Runs the frontend and five backend services and exposes them to the ALB. |
 | Ingress | Application Load Balancer | Yes | Provides one public API endpoint and routes requests to the FastAPI services. |
 | Database | Amazon RDS for PostgreSQL | Yes | Provides persistent bucket, transaction, recurring schedule, and outbox data. |
 | Messaging | Amazon SQS queue | Required for recurring workflow | Provides durable work processing and retry behavior for recurring contributions. |
 | Messaging | SQS dead-letter queue | Recommended | Captures failed recurring messages for demonstration and manual review. |
 | Events | Amazon EventBridge Scheduler or Rule | Required for recurring workflow | Triggers recurring-contribution work on a schedule. |
 | Events | EventBridge custom event bus | Optional for first demo | Routes domain events to notifications and other consumers. SQS can be used directly initially. |
-| Observability | CloudWatch log groups | Yes | Collects container logs for troubleshooting and demonstration. |
-| Observability | CloudWatch metrics and alarms | Recommended | Shows service health, task failures, ALB errors, queue depth, and DLQ messages. |
-| Deployment | AWS IAM roles | Yes | Allows ECS tasks and deployment tools to access only the AWS resources they require. Basic task/execution roles are unavoidable even when advanced security is deferred. |
+| Observability | CloudWatch control-plane logs | Yes | Captures EKS control-plane activity; inspect application pod logs with `kubectl logs` unless the CloudWatch Observability add-on is enabled. |
+| Observability | CloudWatch metrics and alarms | Recommended | Shows node/pod health, ALB errors, queue depth, and DLQ messages. |
+| Deployment | AWS IAM roles | Yes | Allows the EKS control plane, worker nodes, and deployment tools to access only the AWS resources they require. |
 | Deployment | CodeBuild/CodePipeline or GitHub Actions | Optional | Automates image build, push, and deployment. Manual deployment is acceptable for the first capstone demo. |
 
 1. Networking resources
@@ -74,7 +74,7 @@ Create one VPC, for example:
 - Region: one AWS region selected for the capstone.
 - Availability Zones: two AZs in that region.
 
-Justification: ECS, ALB, and RDS need to communicate inside a common VPC. One VPC is sufficient for the capstone and avoids the complexity of multi-region networking.
+Justification: EKS, ALB, and RDS need to communicate inside a common VPC. One VPC is sufficient for the capstone and avoids the complexity of multi-region networking.
 
 1.2 Subnets
 -----------
@@ -84,7 +84,7 @@ Use the following simplified layout:
 - Public subnet A: 10.0.1.0/24.
 - Public subnet B: 10.0.2.0/24.
 
-Place the public ALB and ECS Fargate tasks in these subnets. For the simplest capstone deployment, tasks may receive public IP addresses.
+Place the public ALB and EKS managed nodes in these subnets. The EKS control plane uses a public API endpoint for this capstone; restrict it to trusted IP ranges before sharing the environment.
 
 RDS can use a DB subnet group spanning the same two subnets for the first deployment. If RDS public access is enabled to simplify setup, restrict access to the developer IP and never use production data. A better follow-up is to add dedicated private database subnets and disable public RDS access.
 
@@ -98,7 +98,7 @@ Create:
 - A default route `0.0.0.0/0` to the Internet Gateway.
 - Associate the public route table with both public subnets.
 
-Justification: This allows the browser to reach the ALB and allows public ECS tasks to pull images and write logs without introducing NAT Gateway cost.
+Justification: This allows the browser to reach the ALB and lets public EKS nodes pull images and reach AWS APIs without introducing NAT Gateway cost.
 
 1.4 Security groups
 --------------------
@@ -109,16 +109,16 @@ ALB security group:
 
 - Allow TCP 80 from the internet for the capstone demo.
 - Allow TCP 443 later when HTTPS is configured.
-- Allow outbound traffic to ECS tasks.
+- Allow outbound traffic to EKS NodePort services on ports 30080-30085.
 
-ECS security group:
+EKS node security group:
 
-- Allow the FastAPI service port from the ALB security group.
-- Allow outbound traffic to RDS, SQS, EventBridge, and CloudWatch endpoints.
+- Allow TCP ports 30080-30085 only from the ALB security group.
+- Allow outbound traffic to RDS and required AWS APIs.
 
 RDS security group:
 
-- Allow PostgreSQL TCP 5432 only from the ECS security group.
+- Allow PostgreSQL TCP 5432 only from the EKS cluster security group.
 - For initial local administration, temporarily allow the developer IP if required, then remove it.
 
 Do not expose PostgreSQL to `0.0.0.0/0`.
@@ -126,7 +126,7 @@ Do not expose PostgreSQL to `0.0.0.0/0`.
 2. Frontend service resources
 =============================
 
-2.1 ECS Fargate frontend service
+2.1 EKS frontend Deployment
 --------------------------------
 
 Build the frontend container from `frontend/Dockerfile`:
@@ -144,9 +144,9 @@ Required configuration values at build time:
 - `VITE_NOTIFICATION_API_URL`.
 - `VITE_CUSTOMER_ID` for the mock capstone identity, until real authentication is added.
 
-The frontend ECS task must receive the backend API URL configuration at image-build time or through the deployment pipeline. The browser must call the public ALB/API URL instead of `localhost` in the AWS environment.
+The frontend image must receive the public ALB URL for all API base URLs at image-build time. The browser must call the public ALB URL instead of `localhost` in the AWS environment.
 
-Create one ECS target group for the frontend on container port 80. The ALB default route should send browser requests to the frontend target group. API paths should use path-based rules to route to the backend services.
+Create one instance target group for the frontend on NodePort 30080. The ALB default route should send browser requests to the frontend target group. API paths should use path-based rules to route to backend NodePorts 30081-30085.
 
 3. Container and compute resources
 ==================================
@@ -161,20 +161,20 @@ Create one ECR repository for the frontend and each backend image:
 - savings-bucket-bucket-service.
 - savings-bucket-contribution-service.
 - savings-bucket-withdrawal-service.
-- savings-bucket-recurring-service.
+- savings-bucket-recurring-contribution-service.
 - savings-bucket-notification-service.
 
-3.2 ECS cluster
----------------
+3.2 EKS cluster and managed node group
+--------------------------------------
 
-Create one ECS cluster using the Fargate launch type.
+Create one Amazon EKS cluster and a managed node group across the two public subnets. The capstone Terraform baseline uses two `t3.medium` worker nodes, with a maximum of three nodes.
 
-Justification: The approved architecture uses ECS Fargate and does not require Kubernetes/EKS. Fargate removes the need to manage worker nodes for a capstone.
+Restrict the public Kubernetes API endpoint to trusted source IPs before sharing the environment. The first capstone uses public subnets to avoid NAT Gateway costs; move worker nodes into private subnets for a hardened deployment.
 
-3.3 ECS task definitions and services
+3.3 Kubernetes workloads and services
 -------------------------------------
 
-Create one task definition and service for the frontend and each FastAPI service:
+Apply Kubernetes Deployments and NodePort Services for the frontend and each FastAPI service:
 
 - Frontend Service: port 80 inside the container; Nginx serves the React/Vite production build.
 
@@ -184,9 +184,9 @@ Create one task definition and service for the frontend and each FastAPI service
 - Recurring Contribution Service: port 8000 inside the container.
 - Notification Service: port 8000 inside the container.
 
-Use one task per service initially. Scale out only if the demonstration requires it.
+Run one replica per service initially. Scale replicas or the managed node group only if the demonstration requires it.
 
-Each task should define:
+Each Deployment should define:
 
 - Container image from ECR.
 - CPU and memory suitable for a small FastAPI service.
@@ -194,18 +194,18 @@ Each task should define:
 - Database connection configuration.
 - Mock banking mode enabled.
 - Event and queue configuration.
-- CloudWatch log configuration.
-- Container health check using `/health/live`.
+- Kubernetes liveness and readiness probes using `/health/live` and `/health/ready`.
+- Resource requests and limits appropriate for a small capstone service.
 
-The ALB should route the default browser path and API paths to the appropriate service. Example routes:
+Use NodePort `30080` for the frontend and `30081` through `30085` for backend services. The ALB should route the default browser path and API paths to the appropriate NodePort target group. Example routes:
 
-- `/` and frontend asset paths -> frontend service.
+- `/` and frontend asset paths -> frontend service (`30080`).
 
-- `/v1/buckets*` -> bucket service.
-- `/v1/buckets/*/contributions*` -> contribution service.
-- `/v1/buckets/*/withdrawals*` -> withdrawal service.
-- `/v1/buckets/*/recurring-contributions*` -> recurring service.
-- `/v1/notifications*` -> notification service.
+- `/v1/buckets/*/contributions*` -> contribution service (`30082`).
+- `/v1/buckets/*/withdrawals*` -> withdrawal service (`30083`).
+- `/v1/buckets/*/recurring-contributions*` -> recurring service (`30084`).
+- `/v1/notifications*` and `/internal/notifications*` -> notification service (`30085`).
+- `/v1/buckets*` and `/internal/buckets/*` -> bucket service (`30081`).
 
 The mock identity header `X-Customer-ID` may be used for the capstone demo until Cognito/OIDC is implemented.
 
@@ -215,9 +215,9 @@ The mock identity header `X-Customer-ID` may be used for the capstone demo until
 Create one internet-facing ALB with:
 
 - Listener on port 80 for the first demo.
-- Target groups for the FastAPI services.
-- Health checks to `/health/live`.
-- Path-based routing for the service endpoints.
+- Instance target groups for EKS worker nodes on NodePorts `30080` through `30085`.
+- Frontend health checks to `/`; backend health checks to `/health/live`.
+- Path-based routing for the service endpoints; specific contribution/withdrawal routes must take precedence over the general bucket route.
 
 Justification: The ALB gives the frontend one stable backend URL and avoids exposing five separate service URLs to the browser.
 
@@ -251,7 +251,7 @@ The services should continue to use mock banking behavior. RDS stores capstone r
 
 Run the versioned migration as part of deployment or a one-time migration task:
 
-    db/migrations/001_foundation.sql
+    db/migrations/*.sql (apply in filename order)
 
 Do not rely on application startup to silently change the database schema in the shared AWS environment.
 
@@ -287,7 +287,7 @@ For the capstone, notification-service can consume approved events or be called 
 6.1 CloudWatch Logs
 -------------------
 
-Create one log group per service or one clearly separated application log group. Retain logs for a short capstone period, such as 7 to 14 days.
+Retain EKS control-plane logs in CloudWatch for a short capstone period, such as 7 to 14 days. Use `kubectl logs` for application pod logs in this baseline; add the CloudWatch Observability add-on before requiring centralized container logs.
 
 Include:
 
@@ -306,7 +306,7 @@ Do not log passwords, tokens, or sensitive financial data.
 Recommended first alarms:
 
 - ALB HTTP 5xx errors.
-- ECS task stopped count.
+- EKS node health and Kubernetes pod restart counts.
 - Target health failures.
 - RDS CPU/storage thresholds.
 - SQS visible message count.
@@ -320,9 +320,10 @@ Recommended first alarms:
 
 The minimum required IAM roles are:
 
-- ECS task execution role: pull images from ECR and write logs to CloudWatch.
-- ECS task role: access the specific AWS services used by the application, such as SQS and EventBridge.
-- Deployment role or developer role: deploy ECR images, ECS services, S3 files, and CloudFront invalidations.
+- EKS cluster role: allow the EKS control plane to manage cluster resources.
+- EKS node role: allow worker nodes to join the cluster and pull images from ECR.
+- Deployment role or developer role: push ECR images and deploy Kubernetes workloads to EKS.
+- Use EKS Pod Identity or IAM Roles for Service Accounts (IRSA) for application access to AWS services; do not put application permissions on the worker-node role.
 
 Use the smallest practical permissions for the capstone. Advanced IAM review can happen later.
 
@@ -340,11 +341,11 @@ The following are intentionally not required for the first running capstone depl
 
 | Resource | Why deferred |
 | --- | --- |
-| Amazon S3 frontend hosting | The frontend is required to run as its own ECS Fargate service for this capstone. S3 can be considered later as a static-hosting alternative. |
-| Amazon CloudFront | Not required when the ALB exposes the frontend ECS service directly. Add later for CDN caching and HTTPS edge delivery. |
+| Amazon S3 frontend hosting | The frontend runs as its own EKS Deployment for this capstone. S3 can be considered later as a static-hosting alternative. |
+| Amazon CloudFront | Not required when the ALB exposes the frontend EKS Service directly. Add later for CDN caching and HTTPS edge delivery. |
 | Amazon API Gateway | ALB provides the first stable API boundary; add API Gateway later for centralized API policy, throttling, and JWT integration. |
 | Amazon Cognito | The capstone can use the mock `X-Customer-ID` header initially; add Cognito before real-user testing. |
-| Private ECS subnets and NAT Gateway | Public ECS tasks reduce networking complexity and NAT cost for the first demo. |
+| Private EKS subnets and NAT Gateway | Public EKS nodes reduce networking complexity and NAT cost for the first demo; restrict the Kubernetes API endpoint to trusted IPs. |
 | Private RDS subnets | Recommended later; basic access restrictions remain required. |
 | AWS WAF | Not required to demonstrate application behavior. |
 | AWS Shield Advanced | Not required for a capstone. |
@@ -358,33 +359,28 @@ The following are intentionally not required for the first running capstone depl
 9. Minimum deployment order
 ===========================
 
-1. Create the AWS region and VPC networking.
-2. Create the ECR repositories.
-3. Build and push the frontend and backend images.
-4. Create RDS PostgreSQL and apply migrations.
-5. Create SQS and the DLQ.
-6. Create EventBridge schedule/rule for recurring work.
-7. Create the ECS cluster, task definitions, services, and ALB.
-8. Verify service health endpoints and API routes.
-9. Create the ECS frontend service and configure the ALB default route to it.
-10. Verify the frontend and backend API routes through the ALB URL.
-11. Run the end-to-end capstone demo using mock customer and banking data.
-12. Add Cognito, API Gateway, private networking, CloudFront, and stronger security controls as a follow-up phase.
+1. Provision the VPC, ECR repositories, EKS cluster and node group, ALB, RDS, and messaging resources with Terraform.
+2. Build and push the frontend and backend images to ECR.
+3. Apply the database migration.
+4. Deploy the Kubernetes workloads and NodePort Services.
+5. Verify service health endpoints and API routes through the ALB URL.
+6. Run the end-to-end capstone demo using mock customer and banking data.
+7. Add Cognito, API Gateway, private networking, CloudFront, and stronger security controls as a follow-up phase.
 
 10. Capstone success criteria
 ============================
 
 The AWS environment is sufficient for the capstone when:
 
-- The frontend loads from the ALB URL through its dedicated ECS Fargate service.
+- The frontend loads from the ALB URL through its dedicated EKS Deployment and NodePort Service.
 - The frontend can create and list buckets through the ALB.
 - Bucket details show progress and transaction history.
 - Contribution and withdrawal mock APIs return deterministic results.
 - Recurring schedules can be created and updated.
 - A scheduled message reaches SQS and can be processed by the recurring service.
 - Notification-service can record a mock delivered notification.
-- All ECS services expose healthy `/health/live` endpoints.
-- CloudWatch contains enough logs to trace a request with its correlation ID.
+- All EKS Deployments become ready and expose healthy `/health/live` endpoints.
+- Kubernetes pod logs and EKS control-plane logs are available for troubleshooting.
 - No production customer or banking data is used.
 
 Cost note
@@ -394,8 +390,8 @@ AWS charges apply even to small capstone resources. To control cost:
 
 - Use one region.
 - Use small development instance sizes.
-- Run one Fargate task per service.
+- Run one replica per Kubernetes Deployment and use a small managed node group; account for the EKS control-plane charge and EC2 worker-node costs.
 - Avoid NAT Gateways initially because they have a fixed hourly cost.
 - Use short CloudWatch log retention.
 - Delete or stop resources after demonstrations.
-- Keep the frontend as a dedicated ECS service for this capstone; do not require an S3 website URL.
+- Keep the frontend as a dedicated EKS Deployment for this capstone; do not require an S3 website URL.

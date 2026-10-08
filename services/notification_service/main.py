@@ -34,6 +34,12 @@ def register_routes(app: FastAPI) -> None:
             mock_store.create(request.customer_id, request.event_type, request.message)
         )
 
+    @app.delete("/v1/notifications")
+    async def clear_notifications(
+        customer_id: str = Depends(require_customer_id),
+    ) -> dict[str, int]:
+        return {"deleted_count": mock_store.clear_for_customer(customer_id)}
+
     @app.get("/v1/notifications/{notification_id}")
     async def get_notification(
         notification_id: UUID,

@@ -31,6 +31,16 @@ class BucketResponse(BaseModel):
     status: str
     created_at: datetime
     updated_at: datetime
+    reached_at: datetime | None = None
+    archived_at: datetime | None = None
+
+
+class ApplyTransactionResponse(BucketResponse):
+    goal_reached_now: bool = False
+
+
+class UpdateBucketTargetRequest(BaseModel):
+    target_amount: Decimal = Field(gt=0)
 
 
 class TransactionResponse(BaseModel):
@@ -49,3 +59,4 @@ class ApplyTransactionRequest(BaseModel):
     status: str = Field(pattern="^(SUCCESS|FAILED|REVERSED)$")
     external_reference: str | None = None
     idempotency_key: str
+    allow_over_target: bool = False

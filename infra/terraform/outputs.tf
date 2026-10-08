@@ -17,3 +17,15 @@ output "ecr_repository_urls" {
 output "recurring_queue_url" {
   value = module.messaging.recurring_queue_url
 }
+
+output "eks_cluster_name" {
+  value = module.platform.cluster_name
+}
+
+output "eks_node_group_name" {
+  value = module.platform.node_group_name
+}
+
+output "database_username" {
+  value = var.db_username
+}

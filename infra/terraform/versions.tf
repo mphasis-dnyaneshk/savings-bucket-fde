@@ -51,3 +51,8 @@ variable "db_password" {
   type      = string
   sensitive = true
 }
+
+variable "eks_public_access_cidrs" {
+  type        = list(string)
+  description = "Public source CIDRs allowed to access the EKS Kubernetes API endpoint."
+}

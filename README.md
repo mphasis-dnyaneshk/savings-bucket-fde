@@ -2,7 +2,7 @@
 
 Savings Bucket is a goal-oriented savings capability for digital banking. Customers can create logical savings goals, track progress, contribute and withdraw money, view transaction history, and configure recurring contributions.
 
-The project follows the approved design in the documents under [`documents/`](documents/): Python/FastAPI microservices, PostgreSQL, an API Gateway boundary, OIDC/JWT authentication, and asynchronous recurring-contribution processing with EventBridge/SQS in AWS.
+The project uses Python/FastAPI microservices, PostgreSQL, OIDC/JWT as the target identity model, Amazon EKS for AWS workloads, and EventBridge/SQS for the planned recurring-contribution workflow. The capstone deployment uses an ALB as its initial public entry point; API Gateway remains a future enhancement. See the architecture and operating notes in [`docs/`](docs/).
 
 ## Current development status
 
@@ -19,11 +19,12 @@ The R0 foundation and the bucket-service R1 slice are implemented:
 - Foundation SQL migration for buckets, transactions, and outbox events.
 - Docker image definition and Pytest/Ruff development configuration.
 
-The bucket, contribution, withdrawal, recurring-contribution, and notification services now expose working mock-first API flows. Successful mock contributions and withdrawals update bucket balances and transaction history through bucket-service, with idempotency protection and overdraft validation. Recurring schedules support create, list, read, pause, and update. Notification delivery is represented by an in-memory `DELIVERED` result. The React + TypeScript + Vite frontend is now scaffolded and wired to these local APIs. Real OIDC/JWT validation, EventBridge/SQS processing, Terraform, and banking integration are not implemented yet.
+The bucket, contribution, withdrawal, recurring-contribution, and notification services now expose working mock-first API flows. Successful mock contributions and withdrawals update bucket balances and transaction history through bucket-service, with idempotency protection and overdraft validation. Recurring schedules support create, list, read, pause, and update. Notification delivery is represented by an in-memory `DELIVERED` result. The React + TypeScript + Vite frontend is now scaffolded and wired to these local APIs. Terraform provisions the AWS EKS baseline; real OIDC/JWT validation, end-to-end EventBridge/SQS processing, and banking integration are not implemented yet.
 
 ## MVP scope
 
 - Create and list customer-owned savings buckets. **Implemented in bucket-service.**
+- Archive reached goals after their balance is fully withdrawn; view or restore them from the Archived tab. Archived history is retained and archived goals do not count toward the 10 active-goal limit.
 - View balance, target amount, target date, remaining amount, and progress. **Implemented in bucket-service.**
 - Contribute money to a bucket. **Implemented as a mock contribution workflow.**
 - Withdraw money from a bucket allocation. **Implemented as a mock withdrawal workflow.**
@@ -68,6 +69,7 @@ savings-bucket/
 │   ├── migrations/
 │   └── seed/
 ├── infra/
+│   ├── kubernetes/
 │   └── terraform/
 ├── tests/
 │   ├── unit/
@@ -126,6 +128,10 @@ AWS CLI and Terraform are needed later for cloud infrastructure work, but are no
 Local development defaults to mock mode, which stores bucket data in memory and requires no production data or database credentials. PostgreSQL mode is also supported with database user `dnyanesh_kudale`; its password is read from `FDE_DB_PASS` and is never committed to the repository. Do not connect local experiments to production accounts or production financial data.
 
 ## Start locally
+
+### AWS EKS deployment
+
+Terraform provisions the EKS cluster, managed node group, ALB, ECR repositories, RDS, and messaging resources. Build and deploy the frontend and five backend services as Kubernetes workloads using [the EKS deployment guide](infra/terraform/README.md).
 
 ### Mock mode: fastest local start
 
@@ -195,13 +201,13 @@ Each FastAPI service exposes `GET /health/live` and `GET /health/ready`. The not
 
 The local Git Bash workflow connects to PostgreSQL at `localhost:5432` with database `savings_bucket` and username `dnyanesh_kudale`. The script uses `FDE_DB_PASS` through `PGPASSWORD` for database creation and migration, then application settings use the same password to build `DATABASE_URL`.
 
-For the optional Compose workflow, PostgreSQL uses database `savings_bucket`, username `savings`, password `savings`, and host port `5432`. Apply the foundation migration after the container is ready:
+For the optional Compose workflow, PostgreSQL uses database `savings_bucket`, username `savings`, password `savings`, and host port `5432`. Apply all versioned migrations after the container is ready:
 
 ```bash
-docker compose exec -T postgres psql -U savings -d savings_bucket < db/migrations/001_foundation.sql
+docker compose exec -T postgres sh -c 'for migration in /migrations/*.sql; do psql -U savings -d savings_bucket -v ON_ERROR_STOP=1 -f "$migration"; done'
 ```
 
-The migration creates `buckets`, `bucket_transactions`, and `outbox_events`. Bucket-service reads and writes `buckets` in PostgreSQL mode. Mock mode does not require PostgreSQL and its data is reset whenever the process restarts.
+The migrations create `buckets`, `bucket_transactions`, and `outbox_events`, and add reached/archive timestamps to buckets. Bucket-service reads and writes `buckets` in PostgreSQL mode. Mock mode does not require PostgreSQL and its data is reset whenever the process restarts.
 
 ## Local configuration
 
@@ -228,7 +234,11 @@ The following bucket-service APIs are implemented. Use `X-Customer-ID` as the te
 | --- | --- | --- |
 | `POST` | `/v1/buckets` | Create a bucket |
 | `GET` | `/v1/buckets` | List the customer's buckets |
+| `GET` | `/v1/buckets/archived` | List archived goals and their history |
 | `GET` | `/v1/buckets/{bucket_id}` | Get bucket details and progress |
+| `POST` | `/v1/buckets/{bucket_id}/archive` | Archive a previously reached bucket with zero balance |
+| `POST` | `/v1/buckets/{bucket_id}/restore` | Restore an archived bucket, subject to the active-goal limit |
+| `PATCH` | `/v1/buckets/{bucket_id}` | Change a bucket target amount |
 | `GET` | `/v1/buckets/{bucket_id}/transactions` | List bucket transactions |
 | `POST` | `/v1/buckets/{bucket_id}/contributions` | Mock contribution |
 | `POST` | `/v1/buckets/{bucket_id}/withdrawals` | Mock withdrawal |
@@ -257,6 +267,10 @@ curl -H 'X-Customer-ID: customer-001' http://localhost:8001/v1/buckets/<bucket_i
 The response includes `current_balance`, `remaining_amount`, and `progress_percentage`. A different customer ID cannot access the bucket and receives `404 Bucket not found.`
 
 Invalid or missing `X-Customer-ID` returns `401`. Invalid names, amounts, and dates are rejected by the request schema with `422`.
+
+Contribution requests that exceed the remaining target are rejected unless they include `allow_over_target: true`; the frontend asks the customer to choose before sending that confirmation. A successful first crossing marks the goal as reached, notifies the customer with the actual balance and any excess, and pauses active recurring contributions. Customers can change the target, continue contributing manually, or withdraw from the goal afterward.
+
+Archiving is a soft lifecycle change, not deletion. A bucket can be archived only after it has reached its goal and its balance is zero. Its transaction history remains available from the Archived tab, and restoring it returns it to the active-goal list if fewer than ten active goals exist.
 
 ## Mock service APIs
 

@@ -14,8 +14,19 @@ from services.contribution_service.schemas import (
 from services.contribution_service.store import ContributionRecord, mock_store
 
 
-def to_response(record: ContributionRecord) -> ContributionResponse:
-    return ContributionResponse(**record.__dict__)
+def to_response(
+    record: ContributionRecord, bucket_result: dict | None = None
+) -> ContributionResponse:
+    bucket_result = bucket_result or {}
+    return ContributionResponse(
+        **record.__dict__,
+        goal_reached_now=bucket_result.get("goal_reached_now", False),
+        bucket_current_balance=bucket_result.get("current_balance"),
+        bucket_target_amount=bucket_result.get("target_amount"),
+        bucket_remaining_amount=bucket_result.get("remaining_amount"),
+        bucket_progress_percentage=bucket_result.get("progress_percentage"),
+        bucket_status=bucket_result.get("status"),
+    )
 
 
 def register_routes(app: FastAPI) -> None:
@@ -33,14 +44,18 @@ def register_routes(app: FastAPI) -> None:
                     status_code=status.HTTP_409_CONFLICT,
                     detail="Idempotency key was already used for another request.",
                 )
-            return to_response(existing)
+            record = existing
+        else:
+            try:
+                record = mock_store.create_or_get(
+                    customer_id, bucket_id, request.amount, idempotency_key
+                )
+            except ValueError as error:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT, detail=str(error)
+                )
         try:
-            record = mock_store.create_or_get(
-                customer_id, bucket_id, request.amount, idempotency_key
-            )
-        except ValueError as error:
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(error))
-        try:
+            bucket_result: dict | None = None
             async with httpx.AsyncClient(timeout=5) as client:
                 response = await client.post(
                     f"{get_settings().bucket_service_url}/internal/buckets/{bucket_id}/transactions",
@@ -51,6 +66,7 @@ def register_routes(app: FastAPI) -> None:
                         "status": record.status,
                         "external_reference": record.external_reference,
                         "idempotency_key": record.idempotency_key,
+                        "allow_over_target": request.allow_over_target,
                     },
                 )
             if response.status_code >= 400:
@@ -58,11 +74,12 @@ def register_routes(app: FastAPI) -> None:
                     "detail", "Bucket allocation update failed."
                 )
                 raise HTTPException(status_code=response.status_code, detail=detail)
+            bucket_result = response.json()
         except httpx.RequestError as error:
             raise HTTPException(
                 status_code=503, detail="Bucket service is unavailable."
             ) from error
-        return to_response(record)
+        return to_response(record, bucket_result)
 
     @app.get("/v1/contributions/{contribution_id}")
     async def get_contribution(

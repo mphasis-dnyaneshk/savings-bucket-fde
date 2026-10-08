@@ -1,7 +1,7 @@
 Savings Bucket
 Technical Implementation Plan — v1.0
 Purpose: Bridge the approved Discovery, PRD, SDD, UX/User Journey and Product Backlog into an executable engineering plan.
-Architecture baseline: AWS, Python/FastAPI, PostgreSQL, API Gateway, ECS Fargate, EventBridge and SQS.
+Architecture baseline: AWS, Python/FastAPI, PostgreSQL, Amazon EKS, Application Load Balancer, EventBridge and SQS.
 1. Purpose and Scope
 •	Implement the MVP without changing the PRD intent.
 •	Buckets are logical allocations, not separate bank accounts.
@@ -16,9 +16,9 @@ SDD	AWS architecture, services, APIs, data model, NFRs, security and ADRs.
 UX & User Journey	Customer flows, validation, status language and financial-action safety.
 Product Backlog & User Stories	31 implementable stories, priorities, acceptance criteria and releases.
 3. Target Architecture
-Customer → React + TypeScript + Vite web application → API Gateway → OIDC/JWT → ECS/FastAPI services → PostgreSQL. Recurring contributions use EventBridge and SQS/DLQ. Notifications consume domain events. Banking/Core Banking is authoritative for actual account debits/credits.
-•	API Gateway: API boundary, routing, throttling and authorization integration.
-•	ECS Fargate: FastAPI runtime; EKS is intentionally not used in the current design.
+Customer → React + TypeScript + Vite web application → Application Load Balancer → EKS Kubernetes Services and FastAPI Deployments → PostgreSQL. Recurring contributions use EventBridge and SQS/DLQ. Notifications consume domain events. Banking/Core Banking is authoritative for actual account debits/credits.
+•	Application Load Balancer: public entry point and path-based routing to Kubernetes NodePort Services.
+•	Amazon EKS: Kubernetes control plane and managed EC2 node group for all six application workloads.
 •	RDS PostgreSQL: durable relational store.
 •	EventBridge: event routing and scheduling.
 •	SQS + DLQ: durable asynchronous processing and failure isolation.
@@ -169,8 +169,8 @@ Recovery	Restore, DLQ replay and reconciliation.
 17. AWS Infrastructure
 •	Provision VPC, private application/database subnets and security groups.
 •	Provision encrypted RDS PostgreSQL with backups and appropriate Multi-AZ configuration.
-•	Provision ECS cluster, task definitions, services and autoscaling.
-•	Configure API Gateway routes.
+•	Provision the EKS cluster, managed node group, ALB target groups and ECR repositories.
+•	Apply Kubernetes Deployments and NodePort Services for the frontend and five backend services.
 •	Configure EventBridge schedules/rules and SQS queues/DLQs.
 •	Create least-privilege IAM roles.
 •	Configure Secrets Manager and KMS.

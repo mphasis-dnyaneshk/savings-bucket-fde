@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 
 class ContributionRequest(BaseModel):
     amount: Decimal = Field(gt=0)
+    allow_over_target: bool = False
 
 
 class ContributionResponse(BaseModel):
@@ -18,3 +19,9 @@ class ContributionResponse(BaseModel):
     idempotency_key: str
     external_reference: str
     created_at: datetime
+    goal_reached_now: bool = False
+    bucket_current_balance: Decimal | None = None
+    bucket_target_amount: Decimal | None = None
+    bucket_remaining_amount: Decimal | None = None
+    bucket_progress_percentage: Decimal | None = None
+    bucket_status: str | None = None
