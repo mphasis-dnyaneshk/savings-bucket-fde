@@ -1,0 +1,66 @@
+version: 0.2
+
+env:
+  shell: bash
+  variables:
+    VITE_CUSTOMER_ID: customer-001
+  exported-variables:
+    - IMAGE_TAG
+
+phases:
+  install:
+    runtime-versions:
+      python: 3.12
+    commands:
+      - python -m pip install --upgrade pip
+      - python -m pip install -e ".[dev]"
+  pre_build:
+    commands:
+      - |
+        set -euo pipefail
+        : "${AWS_DEFAULT_REGION:?Set the CodeBuild project AWS region}"
+        : "${ALB_URL:?Set ALB_URL in the CodeBuild project to the deployed ALB URL}"
+        for variable in ECR_FRONTEND ECR_BUCKET_SERVICE ECR_CONTRIBUTION_SERVICE ECR_WITHDRAWAL_SERVICE ECR_RECURRING_CONTRIBUTION_SERVICE ECR_NOTIFICATION_SERVICE; do
+          [[ -n "${!variable:-}" ]] || { echo "Set CodeBuild variable $variable to its existing ECR repository URI" >&2; exit 1; }
+        done
+  build:
+    commands:
+      - python -m pytest
+      - |
+        set -euo pipefail
+        SOURCE_REVISION="${CODEBUILD_RESOLVED_SOURCE_VERSION:-manual}"
+        IMAGE_TAG="${IMAGE_TAG:-${SOURCE_REVISION:0:7}}"
+        export IMAGE_TAG
+        ECR_REGISTRY="${ECR_FRONTEND%/*}"
+        aws ecr get-login-password --region "$AWS_DEFAULT_REGION" \
+          | docker login --username AWS --password-stdin "$ECR_REGISTRY"
+        for service in frontend bucket-service contribution-service withdrawal-service recurring-contribution-service notification-service; do
+          variable_name="ECR_$(printf '%s' "${service//-/_}" | tr '[:lower:]' '[:upper:]')"
+          repository_uri="${!variable_name}"
+          if [[ "${repository_uri%/*}" != "$ECR_REGISTRY" ]]; then
+            echo "$variable_name must use the same ECR registry as ECR_FRONTEND" >&2
+            exit 1
+          fi
+          if [[ "$service" == "frontend" ]]; then
+            docker build -f frontend/Dockerfile \
+              --build-arg "VITE_CUSTOMER_ID=${VITE_CUSTOMER_ID}" \
+              --build-arg "VITE_BUCKET_API_URL=${ALB_URL}" \
+              --build-arg "VITE_CONTRIBUTION_API_URL=${ALB_URL}" \
+              --build-arg "VITE_WITHDRAWAL_API_URL=${ALB_URL}" \
+              --build-arg "VITE_RECURRING_API_URL=${ALB_URL}" \
+              --build-arg "VITE_NOTIFICATION_API_URL=${ALB_URL}" \
+              -t "${repository_uri}:${IMAGE_TAG}" \
+              frontend
+          else
+            module="${service//-/_}"
+            docker build -f Dockerfile \
+              --build-arg "SERVICE_MODULE=services.${module}.main" \
+              -t "${repository_uri}:${IMAGE_TAG}" \
+              .
+          fi
+        done
+        for service in frontend bucket-service contribution-service withdrawal-service recurring-contribution-service notification-service; do
+          variable_name="ECR_$(printf '%s' "${service//-/_}" | tr '[:lower:]' '[:upper:]')"
+          docker push "${!variable_name}:${IMAGE_TAG}"
+        done
+        printf 'Built and pushed all six images with tag %s\n' "$IMAGE_TAG"

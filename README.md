@@ -131,7 +131,19 @@ Local development defaults to mock mode, which stores bucket data in memory and 
 
 ### AWS EKS deployment
 
-Terraform provisions the EKS cluster, managed node group, ALB, ECR repositories, RDS, and messaging resources. Build and deploy the frontend and five backend services as Kubernetes workloads using [the EKS deployment guide](infra/terraform/README.md).
+This application targets the EKS, ALB, RDS, and ECR resources already provisioned for the FDE project. The Terraform under `infra/terraform/` is optional reference infrastructure; the current build workflow does not run it. Set the existing cluster, ALB, and ECR values in your CodeBuild project before building or deploying.
+
+### CodeBuild: build and push all six images
+
+The root [`buildspec.yml`](buildspec.yml) runs the Python test suite, builds the frontend and five FastAPI images, and pushes commit-tagged images to your existing ECR repositories. In AWS CodeBuild, select the repository root as the source, use the standard Linux image with Python 3.12, and enable **Privileged mode** so Docker builds can run.
+
+Set these CodeBuild environment variables:
+
+- `ALB_URL`: the deployed ALB URL; Vite embeds it in the frontend image at build time.
+- `ECR_FRONTEND`, `ECR_BUCKET_SERVICE`, `ECR_CONTRIBUTION_SERVICE`, `ECR_WITHDRAWAL_SERVICE`, `ECR_RECURRING_CONTRIBUTION_SERVICE`, and `ECR_NOTIFICATION_SERVICE`: full existing ECR repository URIs. All six must use the same registry.
+- `IMAGE_TAG`: optional override; otherwise the short source commit hash is used.
+
+Use a CodeBuild service role that can write logs and push to these six ECR repositories. The buildspec builds and pushes images only; it does not provision resources or deploy to EKS. A later deployment stage can use the same repository URI variables and `IMAGE_TAG`.
 
 ### Mock mode: fastest local start
 
