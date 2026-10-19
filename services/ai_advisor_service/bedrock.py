@@ -1,10 +1,13 @@
 import json
+import logging
 
 import boto3
 from botocore.exceptions import BotoCoreError, ClientError
 from pydantic import ValidationError
 
 from services.ai_advisor_service.schemas import AdvisorResponse
+
+logger = logging.getLogger(__name__)
 
 
 class BedrockNotConfigured(Exception):
@@ -51,5 +54,27 @@ def generate_advice(
             item.get("text", "") for item in response["output"]["message"]["content"]
         )
         return AdvisorResponse.model_validate_json(text)
-    except (BotoCoreError, ClientError, KeyError, TypeError, ValidationError) as error:
-        raise BedrockUnavailable("Bedrock could not return valid advice.") from error
+    except ClientError as error:
+        error_code = error.response.get("Error", {}).get("Code", "UnknownClientError")
+        logger.warning("Bedrock Converse request failed with %s", error_code)
+        raise BedrockUnavailable(
+            f"Bedrock Converse request failed: {error_code}."
+        ) from error
+    except BotoCoreError as error:
+        error_type = type(error).__name__
+        logger.warning("Bedrock SDK request failed with %s", error_type)
+        raise BedrockUnavailable(
+            f"Bedrock SDK request failed: {error_type}."
+        ) from error
+    except ValidationError as error:
+        logger.warning("Bedrock response did not match the advisor response schema")
+        raise BedrockUnavailable(
+            "Bedrock returned a response that did not match the expected JSON schema."
+        ) from error
+    except (KeyError, TypeError) as error:
+        logger.warning(
+            "Bedrock response had an unexpected structure (%s)", type(error).__name__
+        )
+        raise BedrockUnavailable(
+            "Bedrock returned a response with an unexpected structure."
+        ) from error
