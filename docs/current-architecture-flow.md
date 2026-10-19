@@ -15,8 +15,10 @@ flowchart LR
         withdrawal[Withdrawal service<br/>FastAPI :8003<br/>Mock withdrawal records]
         recurring[Recurring contribution service<br/>FastAPI :8004<br/>Mock schedules]
         notification[Notification service<br/>FastAPI :8005<br/>In-memory notifications]
+        advisor[AI advisor service<br/>FastAPI :8006<br/>Bedrock advisory endpoints]
         postgres[(PostgreSQL 16<br/>savings_bucket<br/>:5432)]
     end
+    bedrock[Amazon Bedrock Runtime]
 
     customer --> browser
     browser -->|GET/POST /v1/buckets<br/>GET transactions| bucket
@@ -24,11 +26,14 @@ flowchart LR
     browser -->|POST/GET /v1/buckets/:bucket_id/withdrawals| withdrawal
     browser -->|POST/GET/PATCH recurring-contributions| recurring
     browser -->|GET/DELETE notifications\nPOST internal notification| notification
+    browser -.->|Advisory endpoints<br/>not yet wired in UI| advisor
 
     contribution -.->|POST /internal/buckets/:bucket_id/transactions| bucket
     withdrawal -.->|POST /internal/buckets/:bucket_id/transactions| bucket
 
     bucket -->|PostgresBucketStore<br/>when DATABASE_URL is configured| postgres
+    advisor -->|Customer-scoped bucket and transaction reads| postgres
+    advisor -->|Converse API<br/>suggestions only| bedrock
     bucket -.->|InMemoryBucketStore<br/>when DATABASE_URL is absent| bucketMemory[(Process memory)]
     contribution --> contributionMemory[(Process memory)]
     withdrawal --> withdrawalMemory[(Process memory)]
@@ -40,8 +45,8 @@ flowchart LR
     classDef data fill:#fff7d6,stroke:#b58a22,color:#4a3b08,stroke-width:1.5px
     classDef future fill:#eeeeee,stroke:#999999,color:#555555
     class customer,browser user
-    class bucket,contribution,withdrawal,recurring,notification service
-    class postgres,bucketMemory,contributionMemory,withdrawalMemory,recurringMemory,notificationMemory data
+    class bucket,contribution,withdrawal,recurring,notification,advisor service
+    class postgres,bucketMemory,contributionMemory,withdrawalMemory,recurringMemory,notificationMemory,bedrock data
 ```
 
 ## User flow: create and inspect a goal
@@ -128,3 +133,4 @@ flowchart TD
 | Other service records | In-memory stores | Durable stores and event-driven processing |
 | Recurring execution | Schedule CRUD only | EventBridge/SQS worker flow |
 | Notifications | Local delivered result in memory | Notification delivery provider |
+| AI advisor | Read-only PostgreSQL snapshot and Bedrock advice at `:8006`; three API endpoints | Frontend integration, EKS deployment, ALB routing, and workload IAM permissions |

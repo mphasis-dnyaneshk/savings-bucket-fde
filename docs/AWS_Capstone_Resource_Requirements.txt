@@ -13,6 +13,7 @@ The goal is to deploy a working demonstration of:
 - PostgreSQL persistence using Amazon RDS.
 - Mock banking behavior with no production financial data.
 - Recurring-contribution workflow using EventBridge and SQS.
+- Optional AI advisor prototype using Amazon Bedrock with mock PostgreSQL data; no transaction authority.
 - Logs, health checks, and basic operational visibility.
 
 This is a capstone deployment, not a production banking deployment. Advanced infrastructure security is deliberately deferred. That includes WAF, Shield Advanced, private EKS worker nodes, restricted EKS API endpoints, VPC endpoints, centralized security tooling, multi-region disaster recovery, and production-grade identity integration.
@@ -47,10 +48,11 @@ Resource summary
 | Networking | Security groups | Yes, minimum only | Allows ALB-to-EKS NodePort and EKS-to-RDS traffic. Use only the required ports even though advanced security is deferred. |
 | Frontend | EKS frontend Deployment and NodePort Service | Yes | Runs the React/Vite production build in an Nginx container as a standalone Kubernetes workload. |
 | Frontend | Amazon ECR frontend repository | Yes | Stores the frontend container image used by the EKS Deployment. |
-| Container registry | Amazon ECR backend repositories | Yes | Stores versioned container images for the FastAPI services. |
+| Container registry | Amazon ECR backend repositories | Yes | Stores versioned container images for the FastAPI services, including the AI advisor image. |
 | Compute | Amazon EKS cluster | Yes | Managed Kubernetes control plane for the containerized application. |
 | Compute | EKS managed node group | Yes | Runs Kubernetes pods on EC2 worker nodes across two Availability Zones. |
-| Compute | Kubernetes Deployments and NodePort Services | Yes | Runs the frontend and five backend services and exposes them to the ALB. |
+| Compute | Kubernetes Deployments and NodePort Services | Yes | Runs the frontend and existing backend services and exposes them to the ALB. The AI advisor EKS Deployment and ALB route are not yet configured. |
+| AI | Amazon Bedrock Runtime model access | Optional for AI advisor | Generates advisory text from customer-scoped mock bucket/transaction data; requires model access in the selected region and least-privilege invocation permission. |
 | Ingress | Application Load Balancer | Yes | Provides one public API endpoint and routes requests to the FastAPI services. |
 | Database | Amazon RDS for PostgreSQL | Yes | Provides persistent bucket, transaction, recurring schedule, and outbox data. |
 | Messaging | Amazon SQS queue | Required for recurring workflow | Provides durable work processing and retry behavior for recurring contributions. |
@@ -122,6 +124,9 @@ RDS security group:
 - For initial local administration, temporarily allow the developer IP if required, then remove it.
 
 Do not expose PostgreSQL to `0.0.0.0/0`.
+
+AI advisor deployment follow-up:
+The local Compose service listens on port 8006 and calls Bedrock using the configured AWS profile. Before deploying it to EKS, add a Kubernetes Deployment and Service, ALB target group/path rule, NodePort and matching node security-group ingress, RDS connection configuration, and a workload IAM role limited to invoking the selected Bedrock model. Do not inject long-lived AWS access keys into the Pod.
 
 2. Frontend service resources
 =============================

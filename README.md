@@ -19,7 +19,7 @@ The R0 foundation and the bucket-service R1 slice are implemented:
 - Foundation SQL migration for buckets, transactions, and outbox events.
 - Docker image definition and Pytest/Ruff development configuration.
 
-The bucket, contribution, withdrawal, recurring-contribution, and notification services now expose working mock-first API flows. Successful mock contributions and withdrawals update bucket balances and transaction history through bucket-service, with idempotency protection and overdraft validation. Recurring schedules support create, list, read, pause, and update. Notification delivery is represented by an in-memory `DELIVERED` result. The React + TypeScript + Vite frontend is now scaffolded and wired to these local APIs. Terraform provisions the AWS EKS baseline; real OIDC/JWT validation, end-to-end EventBridge/SQS processing, and banking integration are not implemented yet.
+The bucket, contribution, withdrawal, recurring-contribution, and notification services expose mock-first API flows. Successful mock contributions and withdrawals update bucket balances and transaction history through bucket-service, with idempotency protection and overdraft validation. The `ai-advisor-service` provides three advisory endpoints backed by Amazon Bedrock and customer-scoped PostgreSQL bucket/transaction data. Its local Docker Compose and image-build paths are wired; EKS deployment, ALB routing, and frontend integration are not yet implemented. Real OIDC/JWT validation, end-to-end EventBridge/SQS processing, and banking integration are also not implemented.
 
 ## MVP scope
 
@@ -33,7 +33,7 @@ The bucket, contribution, withdrawal, recurring-contribution, and notification s
 - Deliver and read notifications. **Implemented as an in-memory local notification flow.**
 - Protect every operation with authentication and bucket-level authorization.
 
-Future AI recommendations are advisory only and are not part of the MVP money-movement path.
+AI recommendations are advisory only and are not part of the MVP money-movement path. The first backend prototype covers goal adjustments, smart bucket recommendations, and personal savings recommendations; it does not modify buckets or move money.
 
 ## Service architecture
 
@@ -44,9 +44,10 @@ Future AI recommendations are advisory only and are not part of the MVP money-mo
 | `withdrawal-service` | Mock withdrawal records, idempotency, and status lookup | R2 mock slice |
 | `recurring-contribution-service` | Mock schedule create/list/read/update and status | R4 mock slice |
 | `notification-service` | Mock notification delivery and customer-scoped lookup | R5 mock slice |
+| `ai-advisor-service` | Read-only Bedrock-backed goal and savings suggestions based on customer PostgreSQL data | Advisory prototype |
 | `banking-transaction-service` | Authoritative debit/credit boundary; use a mocked adapter locally | R2 |
 
-The transaction-history capability may remain within `bucket-service` for the MVP. A future recommendation service must remain isolated from financial transaction execution.
+The transaction-history capability may remain within `bucket-service` for the MVP. `ai-advisor-service` is isolated from financial transaction execution and only returns suggestions.
 
 ## Target repository structure
 
@@ -133,17 +134,17 @@ Local development defaults to mock mode, which stores bucket data in memory and 
 
 This application targets the EKS, ALB, RDS, and ECR resources already provisioned for the FDE project. The Terraform under `infra/terraform/` is optional reference infrastructure; the current build workflow does not run it. Set the existing cluster, ALB, and ECR values in your CodeBuild project before building or deploying.
 
-### CodeBuild: build and push all six images
+### CodeBuild: build and push all seven images
 
-The root [`buildspec.yml`](buildspec.yml) runs the Python test suite, builds the frontend and five FastAPI images, and pushes commit-tagged images to your existing ECR repositories. In AWS CodeBuild, select the repository root as the source, use the standard Linux image with Python 3.12, and enable **Privileged mode** so Docker builds can run.
+The root [`buildspec.yml`](buildspec.yml) runs the Python test suite, builds the frontend and six FastAPI images, and pushes commit-tagged images to ECR. `ai-advisor-service` has its own Dockerfile and ECR repository. In AWS CodeBuild, select the repository root as the source, use the standard Linux image with Python 3.12, and enable **Privileged mode** so Docker builds can run.
 
 Set these CodeBuild environment variables:
 
 - `ALB_URL`: the deployed ALB URL; Vite embeds it in the frontend image at build time.
-- `ECR_FRONTEND`, `ECR_BUCKET_SERVICE`, `ECR_CONTRIBUTION_SERVICE`, `ECR_WITHDRAWAL_SERVICE`, `ECR_RECURRING_CONTRIBUTION_SERVICE`, and `ECR_NOTIFICATION_SERVICE`: full existing ECR repository URIs. All six must use the same registry.
+- `ECR_FRONTEND`, `ECR_BUCKET_SERVICE`, `ECR_CONTRIBUTION_SERVICE`, `ECR_WITHDRAWAL_SERVICE`, `ECR_RECURRING_CONTRIBUTION_SERVICE`, `ECR_NOTIFICATION_SERVICE`, and `ECR_AI_ADVISOR_SERVICE`: full ECR repository URIs. All seven must use the same registry.
 - `IMAGE_TAG`: optional override; otherwise the short source commit hash is used.
 
-Use a CodeBuild service role that can write logs and push to these six ECR repositories. The buildspec builds and pushes images only; it does not provision resources or deploy to EKS. A later deployment stage can use the same repository URI variables and `IMAGE_TAG`.
+Use a CodeBuild service role that can write logs and push to these seven ECR repositories. Terraform includes the new AI advisor ECR repository. The buildspec builds and pushes images only; it does not provision resources or deploy to EKS. The current Kubernetes manifests and ALB rules do not deploy or route to `ai-advisor-service` yet.
 
 ### Mock mode: fastest local start
 
@@ -186,13 +187,13 @@ Start the other services manually when needed:
 ./.venv/Scripts/python.exe -m uvicorn services.notification_service.main:app --reload --port 8005
 ```
 
-The normal local workflow uses your installed PostgreSQL. Alternatively, build and run PostgreSQL, all five backend services, and the frontend service with Docker Compose:
+The normal local workflow uses your installed PostgreSQL. Alternatively, build and run PostgreSQL, the application services, the AI advisor, and frontend with Docker Compose:
 
 ```bash
 docker compose up --build
 ```
 
-Open the containerized frontend at `http://localhost:5173`. The frontend container serves the Vite production build through Nginx, while the browser calls the backend services through their published ports `8001` through `8005`.
+Open the containerized frontend at `http://localhost:5173`. The browser calls existing backend services through ports `8001` through `8005`; the AI advisor API is available separately at `http://localhost:8006` and is not yet connected to the frontend.
 
 Stop the containers with `docker compose down`. Add `-v` only when you want to remove the local PostgreSQL volume and its data.
 
@@ -205,6 +206,7 @@ Stop the containers with `docker compose down`. Add `-v` only when you want to r
 | `withdrawal-service` | 8003 |
 | `recurring-contribution-service` | 8004 |
 | `notification-service` | 8005 |
+| `ai-advisor-service` | 8006 |
 | PostgreSQL | 5432 |
 
 Each FastAPI service exposes `GET /health/live` and `GET /health/ready`. The notification service also exposes `GET /internal/status`.
@@ -237,6 +239,18 @@ SQS_MODE=local
 ```
 
 The final configuration names must match the implementation. AWS environments should use Secrets Manager and KMS rather than committed credentials or plaintext secrets.
+
+### AI advisor service
+
+The service uses the existing `buckets` and `bucket_transactions` tables. Every request requires `X-Customer-ID`; PostgreSQL queries are scoped to that customer. The model receives only the resulting bucket/transaction snapshot and optional request preferences. Income and expense data are not available in the current schema. Responses are informational and never update buckets or initiate transactions.
+
+| Method | Endpoint | Purpose |
+| --- | --- | --- |
+| `POST` | `/v1/ai/goal-adjustments` | Advice for one bucket; optionally include `bucket_id` and `monthly_contribution` to calculate projected months deterministically. |
+| `POST` | `/v1/ai/bucket-recommendations` | Bucket suggestions; optionally include a `priorities` list. |
+| `POST` | `/v1/ai/savings-recommendations` | Personal savings suggestions; optionally include `monthly_savings_budget`. |
+
+Set `AWS_REGION`, `BEDROCK_MODEL_ID`, and `AWS_PROFILE` in the root `.env`. The profile needs permission to invoke the selected Bedrock model; local Compose mounts the host `.aws` directory read-only. Set `DATABASE_URL` for host PostgreSQL using `host.docker.internal` as the database hostname. Leave `DATABASE_URL` empty to use the Compose-managed PostgreSQL default. The service requires a configured Bedrock model and database URL. OpenAPI is available at `http://localhost:8006/docs`.
 
 ## Bucket-service API
 

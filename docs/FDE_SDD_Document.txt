@@ -9,7 +9,7 @@ Source	Savings Bucket Product Requirements Document
 
 1. Document Overview
 The MVP covers bucket creation, goal definition, contributions, withdrawals, balance/progress visibility, transaction history, and recurring contributions.
-Final architecture decisions: AWS, Python/FastAPI, PostgreSQL, domain-oriented microservices, logical bucket allocation, event-driven recurring contributions, OAuth 2.0/OIDC with JWT, Amazon EKS, and future AI isolated from financial transaction execution.
+Final architecture decisions: AWS, Python/FastAPI, PostgreSQL, domain-oriented microservices, logical bucket allocation, event-driven recurring contributions, OAuth 2.0/OIDC with JWT, Amazon EKS, and advisory AI isolated from financial transaction execution. A local AI advisor prototype uses Amazon Bedrock and customer-scoped bucket/transaction data; EKS deployment and frontend routing remain pending.
 2. Architecture Goals
 •	Goal-oriented savings without a separate bank account per bucket.
 •	Keep actual funds authoritative in the banking account/transaction capability.
@@ -36,10 +36,12 @@ Final architecture decisions: AWS, Python/FastAPI, PostgreSQL, domain-oriented m
 •	View goal progress
 •	View transaction history
 •	Configure recurring contribution
-4.2 Future Scope
+4.2 AI Advisor Prototype and Future Scope
 •	Personalized savings recommendations
 •	Intelligent goal adjustment
 •	Smart bucket recommendations
+The local ai-advisor-service implements these three read-only advice capabilities with Amazon Bedrock. It reads only customer-scoped buckets and transaction history; income and expense data are not in the current schema. The backend calculates projected months deterministically when a monthly contribution is provided. The service cannot update buckets or initiate transactions. Local Compose and ECR image-build wiring exist; EKS deployment, ALB routing, and frontend integration remain pending.
+
 4.3 Out of Scope
 •	Replacing the bank core ledger
 •	Separate bank account per bucket
@@ -57,22 +59,23 @@ Security	TLS, encryption, least privilege	JWT, IAM, KMS, Secrets Manager
 Auditability	Traceable financial state changes	Transaction/audit records + correlation IDs
 Targets are capstone design targets and require validation through testing.
 6. High-Level Architecture
-Customer → React + TypeScript + Vite web application → Application Load Balancer → EKS Kubernetes Services and FastAPI Deployments → RDS PostgreSQL / EventBridge / SQS → Banking Account & Transaction Service. Operational layer uses CloudWatch, distributed tracing and audit records.
+Customer → React + TypeScript + Vite web application → Application Load Balancer → EKS Kubernetes Services and FastAPI Deployments → RDS PostgreSQL / EventBridge / SQS → Banking Account & Transaction Service. The local/prototype AI path is ai-advisor-service → customer-scoped PostgreSQL reads + Amazon Bedrock Runtime; it has no transaction authority. EKS deployment and ALB routing for this service are pending. Operational layer uses CloudWatch, distributed tracing and audit records.
 6.1 AWS Components
 Layer	Technology	Purpose
 API	Application Load Balancer	Public entry point and path-based routing; API Gateway remains a future option for throttling and JWT authorization
 Identity	OAuth 2.0 / OIDC; Cognito as capstone IdP option	Authentication/token validation
-Compute	Amazon EKS managed node groups	Kubernetes Deployments for frontend and FastAPI microservices
+Compute	Amazon EKS managed node groups	Kubernetes Deployments for frontend and existing FastAPI microservices; AI advisor deployment is pending
 Database	Amazon RDS PostgreSQL	Transactional state
 Events	Amazon EventBridge	Domain-event routing
 Queues	Amazon SQS	Durable async processing/retries
 Secrets	AWS Secrets Manager	Sensitive configuration
 Encryption	AWS KMS	Key management
 Observability	CloudWatch + tracing	Logs, metrics, alarms, traces
+AI	Amazon Bedrock Runtime	Advisory generation for the local AI advisor prototype; requires model access and least-privilege invocation permission
 Network	VPC/private subnets/security groups	Isolation and connectivity
 
 6.2 Architecture Diagram
-Browser/React Web UI → ALB → EKS NodePort Services: Frontend | Bucket | Contribution | Withdrawal | Recurring | Notification → RDS PostgreSQL and EventBridge/SQS → Banking Transaction Service (authoritative money movement).
+Browser/React Web UI → ALB → EKS NodePort Services: Frontend | Bucket | Contribution | Withdrawal | Recurring | Notification → RDS PostgreSQL and EventBridge/SQS → Banking Transaction Service (authoritative money movement). Local/prototype AI path: client → ai-advisor-service → PostgreSQL reads + Bedrock Runtime. AI EKS/ALB wiring is pending.
  
 7. Application Architecture
  
@@ -85,6 +88,7 @@ Withdrawal Service	Withdrawal workflow	Balance validation, banking request, with
 Recurring Contribution Service	Recurring config/execution	Scheduling, due commands, retries
 Transaction History	Customer-visible history	History read capability; may remain in Bucket Service for MVP
 Notification Service	Notification delivery	Consume approved events if enabled
+AI Advisor Service	Advisory recommendations	Read customer-scoped bucket/transaction data and request Bedrock advice; cannot modify buckets or initiate transactions
 Banking Transaction Service	Actual money movement	Authoritative account debit/credit and result
 The boundaries are domain-oriented and intentionally avoid a microservice for every CRUD operation.
 8. Data Architecture
@@ -116,6 +120,9 @@ POST	/v1/buckets/{bucketId}/withdrawals	Withdraw money
 GET	/v1/buckets/{bucketId}/transactions	History
 POST	/v1/buckets/{bucketId}/recurring-contributions	Create/configure recurring contribution
 PATCH	/v1/buckets/{bucketId}/recurring-contributions/{id}	Update recurring configuration
+POST	/v1/ai/goal-adjustments	Advisory goal adjustment for a customer-owned bucket
+POST	/v1/ai/bucket-recommendations	Smart bucket suggestions using existing bucket data and optional priorities
+POST	/v1/ai/savings-recommendations	Personal savings suggestions using existing history and optional budget
 9.1 Example – Create Bucket
 POST /v1/buckets
 { "name": "Europe Vacation", "targetAmount": 150000, "targetDate": "2027-06-30" }

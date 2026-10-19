@@ -18,6 +18,8 @@ class Settings(BaseSettings):
     event_bus_mode: str = "local"
     sqs_mode: str = "local"
     bucket_service_url: str = "http://localhost:8001"
+    aws_region: str = "us-east-1"
+    bedrock_model_id: str = ""
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

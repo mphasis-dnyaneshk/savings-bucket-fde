@@ -9,6 +9,7 @@ locals {
     "withdrawal-service",
     "recurring-contribution-service",
     "notification-service",
+    "ai-advisor-service",
   ]
 }
 

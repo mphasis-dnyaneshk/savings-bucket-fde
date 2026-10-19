@@ -109,6 +109,28 @@ services:
       postgres:
         condition: service_healthy
 
+  ai-advisor-service:
+    build:
+      context: .
+      dockerfile: dockerfiles/Dockerfile.ai-advisor-service
+    environment:
+      SERVICE_NAME: ai-advisor-service
+      APP_ENV: local
+      DATABASE_URL: ${DATABASE_URL:-postgresql://savings:savings@postgres:5432/savings_bucket}
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      AWS_PROFILE: ${AWS_PROFILE:-default}
+      BEDROCK_MODEL_ID: ${BEDROCK_MODEL_ID:-}
+    volumes:
+      - type: bind
+        source: ${USERPROFILE}/.aws
+        target: /root/.aws
+        read_only: true
+    ports:
+      - "8006:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   frontend:
     build:
       context: ./frontend

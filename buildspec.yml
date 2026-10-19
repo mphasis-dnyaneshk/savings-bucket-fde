@@ -20,7 +20,7 @@ phases:
         set -euo pipefail
         : "${AWS_DEFAULT_REGION:?Set the CodeBuild project AWS region}"
         : "${ALB_URL:?Set ALB_URL in the CodeBuild project to the deployed ALB URL}"
-        for variable in ECR_FRONTEND ECR_BUCKET_SERVICE ECR_CONTRIBUTION_SERVICE ECR_WITHDRAWAL_SERVICE ECR_RECURRING_CONTRIBUTION_SERVICE ECR_NOTIFICATION_SERVICE; do
+        for variable in ECR_FRONTEND ECR_BUCKET_SERVICE ECR_CONTRIBUTION_SERVICE ECR_WITHDRAWAL_SERVICE ECR_RECURRING_CONTRIBUTION_SERVICE ECR_NOTIFICATION_SERVICE ECR_AI_ADVISOR_SERVICE; do
           [[ -n "${!variable:-}" ]] || { echo "Set CodeBuild variable $variable to its existing ECR repository URI" >&2; exit 1; }
         done
   build:
@@ -34,7 +34,7 @@ phases:
         ECR_REGISTRY="${ECR_FRONTEND%/*}"
         aws ecr get-login-password --region "$AWS_DEFAULT_REGION" \
           | docker login --username AWS --password-stdin "$ECR_REGISTRY"
-        for service in frontend bucket-service contribution-service withdrawal-service recurring-contribution-service notification-service; do
+        for service in frontend bucket-service contribution-service withdrawal-service recurring-contribution-service notification-service ai-advisor-service; do
           variable_name="ECR_$(printf '%s' "${service//-/_}" | tr '[:lower:]' '[:upper:]')"
           repository_uri="${!variable_name}"
           if [[ "${repository_uri%/*}" != "$ECR_REGISTRY" ]]; then
@@ -51,6 +51,10 @@ phases:
               --build-arg "VITE_NOTIFICATION_API_URL=${ALB_URL}" \
               -t "${repository_uri}:${IMAGE_TAG}" \
               frontend
+          elif [[ "$service" == "ai-advisor-service" ]]; then
+            docker build -f dockerfiles/Dockerfile.ai-advisor-service \
+              -t "${repository_uri}:${IMAGE_TAG}" \
+              .
           else
             module="${service//-/_}"
             docker build -f Dockerfile \
@@ -59,8 +63,8 @@ phases:
               .
           fi
         done
-        for service in frontend bucket-service contribution-service withdrawal-service recurring-contribution-service notification-service; do
+        for service in frontend bucket-service contribution-service withdrawal-service recurring-contribution-service notification-service ai-advisor-service; do
           variable_name="ECR_$(printf '%s' "${service//-/_}" | tr '[:lower:]' '[:upper:]')"
           docker push "${!variable_name}:${IMAGE_TAG}"
         done
-        printf 'Built and pushed all six images with tag %s\n' "$IMAGE_TAG"
+        printf 'Built and pushed all seven images with tag %s\n' "$IMAGE_TAG"

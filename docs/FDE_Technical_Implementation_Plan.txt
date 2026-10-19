@@ -26,6 +26,7 @@ Customer → React + TypeScript + Vite web application → Application Load Bala
 •	CloudWatch + tracing: logs, metrics, traces and alerts.
 •	VPC/private subnets/security groups: network isolation.
 •	Future AI Recommendation Service: isolated advisory boundary.
+Current AI advisor implementation: the local ai-advisor-service reads customer-scoped buckets and transaction history from PostgreSQL and calls Amazon Bedrock for advisory text. It exposes POST /v1/ai/goal-adjustments, POST /v1/ai/bucket-recommendations, and POST /v1/ai/savings-recommendations. It cannot update buckets or initiate transactions. Docker Compose and ECR image-build wiring are present; EKS deployment, ALB routing, and frontend integration remain pending.
 4. Implementation Principles
 •	Money first, allocation second; never show financial success before authoritative confirmation.
 •	Never trust the client for identity, bucket ownership or final transaction state.
@@ -75,6 +76,7 @@ Withdrawal Service	Validate allocation, initiate withdrawal and manage state.
 Recurring Contribution Service	Schedules, due execution and safe retries.
 Notification Service	Consume domain events and notify customers.
 Future AI Service	Savings/goal recommendations; no transaction authority.
+The AI Advisor Service is an additional read-only advisory boundary. Its calculations remain deterministic where applicable; Bedrock provides grounded qualitative explanations. Income and expense records are not in the current database schema.
 7. API Implementation
 Endpoint	Priority	Main work
 POST /v1/buckets	P0	Validate and create bucket.
@@ -176,6 +178,7 @@ Recovery	Restore, DLQ replay and reconciliation.
 •	Configure Secrets Manager and KMS.
 •	Configure CloudWatch logs, metrics and alarms.
 •	Externalize environment-specific configuration.
+Before deploying ai-advisor-service to EKS, add its Kubernetes Deployment and Service, NodePort and ALB route, RDS connection configuration, and workload identity permission limited to invoking the selected Bedrock model. The current CodeBuild stage builds and pushes the AI advisor image but does not deploy it.
 18. CI/CD
 Checkout
 Lint/static checks
